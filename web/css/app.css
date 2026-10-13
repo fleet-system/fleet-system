@@ -59,7 +59,9 @@ input:focus, select:focus { outline: 3px solid #A9CDB4; border-color: var(--palm
 .main { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 .topbar { position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: 1fr auto; gap: 10px 12px; align-items: center;
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
-.tb-title { display: grid; min-width: 0; }
+.tb-title { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; min-width: 0; }
+.tb-title > .tb-name, .tb-title > .tb-meta { grid-column: 2; }
+.tb-logo { grid-row: 1 / span 2; width: 40px; height: 40px; object-fit: contain; border-radius: 50%; background: #fff; }
 .tb-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tb-meta { display: flex; gap: 10px; color: var(--muted); font-size: .85rem; }
 .tb-actions { display: flex; gap: 8px; align-items: center; grid-row: 1; grid-column: 2; }
@@ -174,7 +176,8 @@ input:focus, select:focus { outline: 3px solid #A9CDB4; border-color: var(--palm
 .login-card { align-self: center; justify-self: center; width: min(420px, 100%); display: grid; gap: 14px; padding: 32px 20px; }
 .login-card h1 { font-size: 1.6rem; }
 .login-card p { margin: 0; }
-.login-brand { width: 60px; height: 60px; display: grid; place-items: center; border-radius: 16px; background: var(--palm); color: var(--leaf); }
+.login-brand { justify-self: center; width: min(200px, 60%); }
+.login-brand img { display: block; width: 100%; height: auto; object-fit: contain; border-radius: 16px; }
 .brand-ic { width: 32px; height: 32px; }
 
 .toast { position: fixed; inset-inline: 16px; bottom: calc(90px + env(safe-area-inset-bottom)); z-index: 60; padding: 14px 16px; border-radius: 12px;
@@ -202,7 +205,9 @@ input:focus, select:focus { outline: 3px solid #A9CDB4; border-color: var(--palm
 @media (min-width: 1000px) {
   .layout { display: grid; grid-template-columns: var(--side) 1fr; }
   .sidebar { display: flex; flex-direction: column; position: sticky; top: 0; height: 100dvh; overflow: auto; padding: 18px 12px; background: var(--palm); color: #fff; }
-  .brand { display: flex; gap: 10px; align-items: center; padding: 4px 8px 18px; color: var(--leaf); }
+  .brand { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 4px 8px 18px; color: var(--leaf); }
+  .brand-logo { display: block; width: 100%; max-width: 190px; padding: 10px; border-radius: 14px; background: #fff; }
+  .brand-logo img { display: block; width: 100%; height: auto; object-fit: contain; }
   .brand b { display: block; color: #fff; } .brand small { color: #B9D2C0; }
   .nav { display: grid; gap: 2px; }
   .nav-link:hover { background: rgba(255, 255, 255, .08); color: #fff; }

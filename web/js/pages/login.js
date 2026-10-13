@@ -10,7 +10,7 @@ export function renderLogin(root, onDone) {
         <div class="rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
       </div>
       <form class="login-card" novalidate>
-        <div class="login-brand">${icon('leaf', 'brand-ic')}</div>
+        <div class="login-brand"><img src="logo.png" alt="شعار شركة روى الرمال الزراعية" width="624" height="640"></div>
         <h1>نظام إدارة الأسطول<br>والمواقع الزراعية</h1>
         <p class="muted">مزارع الغملاس والبركة وارم، ومشتل الغملاس</p>
         <label class="field"><span>البريد الإلكتروني</span>

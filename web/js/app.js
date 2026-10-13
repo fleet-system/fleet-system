@@ -26,7 +26,7 @@ import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 
-export const VERSION = '1.6';
+export const VERSION = '1.7';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -70,7 +70,7 @@ function shell(user) {
   root.innerHTML = html`
     <div class="layout">
       <aside class="sidebar" aria-label="القائمة الرئيسية">
-        <div class="brand">${icon('leaf', 'brand-ic')}<div><b>نظام إدارة الأسطول</b><small>والمواقع الزراعية · الإصدار <span class="num">${VERSION}</span></small></div></div>
+        <div class="brand"><span class="brand-logo"><img src="logo.png" alt="شعار شركة روى الرمال الزراعية" width="624" height="640"></span><div><b>نظام إدارة الأسطول</b><small>والمواقع الزراعية · الإصدار <span class="num">${VERSION}</span></small></div></div>
         <nav class="nav">${raw(NAV.filter((n) => !n.hidden && (!n.admin || user.is_admin)).map((n) => navLink(n)).join(''))}</nav>
         <button class="nav-link signout" data-act="signout">${icon('logout')}<span>تسجيل الخروج</span></button>
       </aside>
@@ -78,6 +78,7 @@ function shell(user) {
       <div class="main">
         <header class="topbar">
           <div class="tb-title">
+            <img class="tb-logo" src="logo-mark.png" alt="الشعار" width="192" height="192">
             <span class="tb-name">نظام إدارة الأسطول والمواقع الزراعية</span>
             <span class="tb-meta"><span class="tb-user">${user.full_name}</span><span class="tb-date num">${today}</span></span>
           </div>
