@@ -70,7 +70,11 @@ export async function renderDashboard(el) {
     apply();
   });
   await loadBody($('#dash-body', el), lookups);
+  // تحديث مباشر: عند الرجوع إلى التطبيق أو الصفحة تُعاد قراءة الأرقام من قاعدة البيانات
+  liveRefresh = () => { const b = $('#dash-body', el); if (b && document.contains(b) && !document.hidden) loadBody(b, lookups); };
 }
+let liveRefresh = null;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && liveRefresh && location.hash.replace(/\?.*/, '') in { '': 1, '#/': 1, '#/dashboard': 1 }) liveRefresh(); });
 
 async function loadBody(body, { companies, sites }) {
   body.setAttribute('aria-busy', 'true');
@@ -197,7 +201,14 @@ function vehicleDocs(vrows, docRows) {
   // أقرب وثيقة لكل سيارة خلال 30 يوماً (قبل أن تنتهي)، مرتبة: الأقرب أولاً
   const nearest = [...byId.values()].map((v) => ({ v, d: v.docs.filter((d) => d.days_left >= 0 && d.days_left <= SOON_DAYS).sort((a, b) => a.days_left - b.days_left)[0] }))
     .filter((x) => x.d).sort((a, b) => a.d.days_left - b.d.days_left || String(a.v.code).localeCompare(String(b.v.code)));
-  return { box, nearest, expiredAll: items.filter((x) => x.d.days_left < 0).length };
+  // الرسم: لكل نوع وثيقة عدد المنتهية / خلال 30 يوماً / السارية / غير المحددة (سيارة بلا تاريخ)
+  const nVeh = byId.size;
+  const chart = VDOC_TYPES.map((t) => {
+    const ds = items.filter((x) => x.d.doc_type === t).map((x) => x.d.days_left);
+    const withDate = new Set(items.filter((x) => x.d.doc_type === t).map((x) => x.v.id)).size;
+    return { t, expired: ds.filter((n) => n < 0).length, soon: ds.filter((n) => n >= 0 && n <= SOON_DAYS).length, valid: ds.filter((n) => n > SOON_DAYS).length, none: Math.max(0, nVeh - withDate) };
+  });
+  return { box, nearest, chart, expiredAll: items.filter((x) => x.d.days_left < 0).length };
 }
 const docRow = ({ v, d }) => html`<li><a href="#/vehicles/${v.id}?tab=docs" class="vdoc-row">
   <i class="dot pl-${v.place}" title="${PLACES.find(([k]) => k === v.place)[1]}"></i>
@@ -217,10 +228,21 @@ function vdocsList(vd, k) {
     <h3 class="vdoc-h">${name}: تنتهي خلال ${num(SOON_DAYS)} يوماً (${num(b.soon.length)})</h3>
     ${raw(b.soon.length ? html`<ul class="vdoc-list">${raw(sort(b.soon).map(docRow).join(''))}</ul>` : '<p class="muted small">لا توجد.</p>')}`;
 }
+const VDOC_PARTS = [['expired', 'منتهية'], ['soon', `تنتهي خلال ${SOON_DAYS} يوماً`], ['valid', 'سارية'], ['none', 'غير محددة']];
+function vdocsChart(rows) {
+  return html`<div class="vdoc-chart" data-vdoc-chart role="img" aria-label="حالة وثائق السيارات حسب النوع">
+    ${raw(rows.map((r) => { const tot = VDOC_PARTS.reduce((a, [k]) => a + r[k], 0) || 1; return html`<div class="vc-row" data-type="${r.t}">
+      <span class="vc-label">${VDOC_NAME[r.t]}</span>
+      <div class="vc-bar">${raw(VDOC_PARTS.map(([k, t]) => (r[k] ? html`<span class="vc-seg vc-${k}" data-part="${k}" style="flex:${r[k]}" title="${VDOC_NAME[r.t]} — ${t}: ${num(r[k])}">${r[k] / tot >= 0.12 ? num(r[k]) : ''}</span>` : '')).join(''))}</div>
+      <b class="vc-bad num ${r.expired ? 'bad-text' : 'muted'}" title="منتهية">${num(r.expired)}</b></div>`; }).join(''))}
+    <ul class="vc-legend">${raw(VDOC_PARTS.map(([k, t]) => html`<li><i class="dot vc-${k}"></i>${t}</li>`).join(''))}</ul>
+  </div>`;
+}
 function vdocsPanel(vd) {
   return html`<article class="panel vdocs" data-vdocs aria-labelledby="p-vdocs">
     <header><h2 id="p-vdocs">وثائق السيارات</h2><a href="#/documents" class="link">كل الوثائق</a></header>
     <p class="muted small vdoc-sub">رخصة السير · الفحص الدوري · التأمين — من بطاقات السيارات مباشرة. اضغط على خانة لعرض سياراتها.</p>
+    ${raw(vdocsChart(vd.chart))}
     <ul class="kv three five vdoc-boxes">${raw(PLACES.map(([k, t]) => html`<li data-k="${k}"><button type="button" class="place-btn" data-dpick="${k}">
       <span><i class="dot pl-${k}"></i>${t}</span>
       <b class="num ${vd.box[k].expired.length ? 'bad-text' : ''}">${num(vd.box[k].expired.length)}</b><small class="muted">وثائق منتهية</small>

@@ -834,3 +834,13 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .vdoc-row:hover { background: var(--line); }
 .vdoc-row .dot { grid-area: dot; } .vdoc-car { grid-area: car; } .vdoc-type { grid-area: type; color: var(--muted); font-size: .88rem; }
 .vdoc-date { grid-area: date; font-size: .88rem; color: var(--muted); } .vdoc-row .tag { grid-area: tag; justify-self: end; }
+
+/* 1.15: رسم حالة الوثائق (فوق خانات بطاقة وثائق السيارات) */
+.vdoc-chart { margin: 4px 0 14px; display: grid; gap: 8px; }
+.vc-row { display: grid; grid-template-columns: 6.5em 1fr 2.2em; align-items: center; gap: 8px; font-size: .88rem; }
+.vc-bar { display: flex; gap: 2px; height: 22px; border-radius: 6px; overflow: hidden; background: var(--line); }
+.vc-seg { display: grid; place-items: center; color: #fff; font-size: .78rem; font-weight: 700; min-width: 4px; transition: flex .4s ease; }
+.vc-expired { background: var(--bad); } .vc-soon { background: var(--warn); } .vc-valid { background: var(--ok); } .vc-none { background: #c9cfcb; color: var(--ink); }
+.vc-bad { text-align: center; }
+.vc-legend { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); }
+.vc-legend li { display: inline-flex; align-items: center; gap: 6px; }

@@ -53,6 +53,19 @@ with sync_playwright() as p:
     ok(len({s['plate'] for s in soon}) == len(soon), 'one row per vehicle (its nearest document)')
     want = min([r for r in rows if 0 <= r['days_left'] <= 30], key=lambda r: r['days_left'])
     ok(soon and soon[0]['plate'] == want['plate_no'], f'first row is the vehicle whose document ends first [{soon[0]["plate"] if soon else ""} / {want["plate_no"]}]')
+    # chart above the boxes: one bar per document type, parts = expired / within 30 / valid / no date
+    def chart(g): return g.evaluate("Object.fromEntries([...document.querySelectorAll('[data-vdoc-chart] .vc-row')].map(r => [r.dataset.type, Object.fromEntries([...r.querySelectorAll('.vc-seg')].map(x => [x.dataset.part, +x.style.flexGrow || +x.style.flex.split(' ')[0]]))]))")
+    def chart_exp():
+        nveh = int(sql("select count(*) from vehicles where deleted_at is null")); out = {}
+        for t in ['registration', 'periodic_inspection', 'insurance']:
+            rs = [r['days_left'] for r in expected()[1] if r['doc_type'] == t]
+            withd = int(sql(f"select count(distinct d.owner_id) from v_document_status d join vehicles v on v.id = d.owner_id and v.deleted_at is null where d.owner_type='vehicle' and d.doc_type='{t}' and d.days_left is not null"))
+            parts = {'expired': sum(1 for n in rs if n < 0), 'soon': sum(1 for n in rs if 0 <= n <= 30), 'valid': sum(1 for n in rs if n > 30), 'none': nveh - withd}
+            out[t] = {k: v for k, v in parts.items() if v}
+        return out
+    ch = chart(g)
+    ok(g.locator('[data-vdoc-chart]').count() == 1 and g.locator('[data-vdoc-chart] + .vdoc-boxes').count() == 1, 'chart is above the boxes')
+    ok(ch == chart_exp(), f'chart matches the database {ch} vs {chart_exp()}')
     g.screenshot(path=f'{OUT}/1-card.png', full_page=True)
     # click a box: its expired + soon documents
     g.click('[data-vdocs] [data-dpick=accident]'); g.wait_for_timeout(250)
@@ -71,6 +84,11 @@ with sync_playwright() as p:
     g.click('.modal [data-save]'); g.wait_for_selector('.modal', state='detached', timeout=30000); g.wait_for_timeout(400)
     dash(g); exp2, _ = expected(); got2 = boxes(g)
     ok(got2 == exp2 and got2['inside'] == exp['inside'] - 1, f'renewing the insurance in the card removes it from «منتهية» {got2}')
+    ok(chart(g) == chart_exp(), 'chart follows the card change')
+    # live: data changed elsewhere -> returning to the app refreshes the dashboard without reloading
+    sql(f"update vehicles set insurance_expiry = app_today() - 1 where id = '{V[3]}'")
+    g.evaluate("Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange'))"); g.wait_for_timeout(1200)
+    ok(chart(g) == chart_exp(), f'returning to the app refreshes the chart {chart(g)}')
     soon2 = g.inner_text('[data-vdoc-soon]')
     ok('أ ب ج 1234' in soon2 and 'باقي 5 يوم' in soon2, 'and it appears in the nearest list with the new date')
     # mobile
