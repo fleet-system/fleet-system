@@ -25,13 +25,16 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     c, g = new_ctx(b); login(g); settings(g)
     ok(g.locator('.excel-link').count() == 1 and 'غير مفعّل' in g.inner_text('.excel-link'), 'admin sees «ملف Excel المربوط», not active yet')
-    ok('بدون' in g.inner_text('.excel-link') and 'الجوالات' in g.inner_text('.excel-link'), 'explains no sensitive numbers')
-    g.click('[data-act=xl-new]'); g.wait_for_selector('.xl-url')
+    ok('الجوالات' in g.inner_text('.excel-link'), 'explains the sensitive-data choice')
+    g.click('[data-act=xl-new]'); g.wait_for_selector('.modal [name=include_sensitive]')
+    ok(g.is_checked('.modal [name=include_sensitive]') and 'أرقام الهوية والإقامة والجوالات' in g.inner_text('.modal'), 'option «تضمين البيانات الحساسة» shown (on, as requested)')
+    g.click('.modal [data-save]'); g.wait_for_selector('.xl-url')
     url = g.input_value('.xl-url'); key = url.split('key=')[1]
     ok('/functions/v1/excel-feed?key=' in url and url.startswith(('https://pemyrokrbqzwvtretawa.supabase.co/', 'http://localhost:8787/')), f'link points to the function [{url[:60]}]')
     ok(len(key) >= 40, f'key is long and random ({len(key)} chars)')
     c1 = cfg()
     ok(c1 and c1['hash'] == hashlib.sha256(key.encode()).hexdigest() and c1['enabled'] is True, 'only the SHA-256 of the key is stored')
+    ok(c1.get('include_sensitive') is True and 'بما فيها أرقام الهوية' in g.inner_text('.xl-out'), 'sensitive choice saved and warned')
     ok(key not in sql("select value::text from app_settings where key='excel_feed'") and key not in sql("select coalesce(string_agg(new_data::text, ''), '') from audit_log where table_name='app_settings'"), 'the key itself is not saved anywhere (settings or audit log)')
     ok(g.locator('.xl-steps[open]').count() == 1 and 'من ويب' in g.inner_text('.xl-steps'), 'Excel steps shown')
     g.click('[data-act=xl-copy]'); g.wait_for_timeout(300)
@@ -40,10 +43,12 @@ with sync_playwright() as p:
     # the link is shown once: after reload only the status is visible
     settings(g)
     ok(g.locator('.xl-url').count() == 0 and 'مفعّل' in g.inner_text('.excel-link'), 'key not shown again after reload')
-    # a new link replaces the old one
-    g.click('[data-act=xl-new]'); g.wait_for_selector('.modal [data-yes]'); g.click('.modal [data-yes]'); g.wait_for_selector('.xl-url')
+    ok('يشمل البيانات الحساسة' in g.inner_text('.excel-link'), 'status says the link includes sensitive data')
+    # a new link replaces the old one (this time without sensitive data)
+    g.click('[data-act=xl-new]'); g.wait_for_selector('.modal [name=include_sensitive]'); g.uncheck('.modal [name=include_sensitive]'); g.click('.modal [data-save]'); g.wait_for_selector('.xl-url')
     key2 = g.input_value('.xl-url').split('key=')[1]
     ok(key2 != key and cfg()['hash'] == hashlib.sha256(key2.encode()).hexdigest(), 'new link replaces the old one (old key no longer valid)')
+    ok(cfg().get('include_sensitive') is False, 'second link without sensitive data')
     # turn off
     settings(g); g.click('[data-act=xl-off]'); g.wait_for_selector('.modal [data-yes]'); g.click('.modal [data-yes]'); g.wait_for_timeout(800)
     ok(cfg()['enabled'] is False and 'غير مفعّل' in g.inner_text('.excel-link'), 'link turned off')

@@ -1,6 +1,6 @@
 // دالة Supabase: ملف Excel المربوط (للقراءة فقط). الرابط: .../functions/v1/excel-feed?key=المفتاح
 // المفتاح يُنشأ من الموقع (الإعدادات ← ملف Excel المربوط) وتُحفظ بصمته فقط في app_settings.excel_feed.
-import { DATASETS, keyAllowed, buildWorkbook } from './feed.js';
+import { DATASETS, SENSITIVE_DATASETS, keyAllowed, buildWorkbook, feedConfig } from './feed.js';
 
 const URL_ = Deno.env.get('SUPABASE_URL')!;
 const KEY_ = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -17,11 +17,13 @@ Deno.serve(async (req) => {
   try {
     const settings = await get(DATASETS.settings);
     if (!(await keyAllowed(key, settings))) return new Response('Not allowed', { status: 403 });
-    const names = Object.keys(DATASETS).filter((n) => n !== 'settings');
-    const rows = await Promise.all(names.map((n) => get(DATASETS[n as keyof typeof DATASETS])));
+    const sensitive = feedConfig(settings)?.include_sensitive === true;
+    const all: Record<string, string> = { ...DATASETS, ...(sensitive ? SENSITIVE_DATASETS : {}) };
+    const names = Object.keys(all).filter((n) => n !== 'settings');
+    const rows = await Promise.all(names.map((n) => get(all[n])));
     const d: Record<string, unknown[]> = { settings };
     names.forEach((n, i) => { d[n] = rows[i]; });
-    const blob = buildWorkbook(d);
+    const blob = buildWorkbook(d, new Date(), { sensitive });
     return new Response(blob, { headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': 'attachment; filename="fleet-data.xlsx"',

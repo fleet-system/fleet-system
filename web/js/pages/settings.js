@@ -136,7 +136,8 @@ function excelLinkSection(cfg) {
   return html`<section class="panel excel-link">
     <div class="tab-head"><h2>ملف Excel المربوط</h2><span class="tag ${on ? 't-valid' : 't-missing'}">${on ? 'مفعّل' : 'غير مفعّل'}</span></div>
     <p>ملف Excel في OneDrive يجلب آخر بيانات النظام كلما فتحته على الكمبيوتر: السيارات، الوثائق والتنبيهات، المتابعات، تغيير الزيت، الصيانة، طلبات الصيانة، الحوادث، والمصروفات.
-      <b>للقراءة فقط</b>، و<b>بدون</b> أرقام الهوية أو الإقامة أو الجوالات أو أرقام الفواتير.</p>
+      <b>للقراءة فقط</b>. عند إنشاء الرابط تختار: بدون البيانات الحساسة، أو مع أرقام الهوية والإقامة والجوالات والفواتير.</p>
+    ${raw(on ? html`<p class="${cfg.include_sensitive ? 'bad-box' : 'ok-box warn-box'} small">${cfg.include_sensitive ? 'الرابط الحالي يشمل البيانات الحساسة: أرقام الهوية والإقامة والجوالات والفواتير، وورقة الموظفين.' : 'الرابط الحالي بدون البيانات الحساسة.'}</p>` : '')}
     ${raw(on ? html`<p class="muted small">أُنشئ الرابط الحالي بتاريخ <span class="num">${dateTime(cfg.created_at)}</span>${cfg.created_by ? ` بواسطة ${cfg.created_by}` : ''}. لا يمكن عرضه مرة أخرى؛ إن فقدته أنشئ رابطاً جديداً (يتوقف القديم تلقائياً).</p>` : '')}
     <div class="btn-row wrap"><button class="btn btn-primary" data-act="xl-new">${icon('table')}<span>${on ? 'إنشاء رابط جديد' : 'إنشاء رابط ملف Excel'}</span></button>
       ${raw(on ? html`<button class="btn" data-act="xl-off">${icon('close')}<span>إيقاف الرابط</span></button>` : '')}</div>
@@ -164,15 +165,23 @@ async function excelLinkAction(b, cfg, el) {
     await saveFeed({ ...cfg, enabled: false, disabled_at: new Date().toISOString() });
     saved('تم إيقاف الرابط'); renderSettings(el); return;
   }
-  if (on && !await confirmBox('سيتوقف الرابط الحالي ويُنشأ رابط جديد. أي ملف Excel مربوط بالرابط القديم يحتاج تحديث الرابط فيه.', { title: 'رابط جديد', okText: 'إنشاء رابط جديد' })) return;
+  const opt = await openForm({
+    title: on ? 'إنشاء رابط جديد' : 'إنشاء رابط ملف Excel', draft: false, submitText: 'إنشاء الرابط',
+    intro: html`${on ? 'سيتوقف الرابط الحالي فوراً، وأي ملف مربوط به يحتاج الرابط الجديد. ' : ''}الرابط يظهر مرة واحدة فقط، ومن يملكه يرى بيانات الملف بدون تسجيل دخول.`.toString(),
+    fields: [{ name: 'include_sensitive', type: 'checkbox', label: 'تضمين البيانات الحساسة: أرقام الهوية والإقامة والجوالات وأرقام الفواتير، وورقة الموظفين', full: true,
+      help: 'فعّلها فقط إذا كان الملف لك وحدك. لا تشارك الملف أو الرابط مع أحد.' }],
+    values: { include_sensitive: true },
+    onSubmit: async (v) => ({ include_sensitive: !!v.include_sensitive }),
+  });
+  if (!opt) return;
   const key = b64url(crypto.getRandomValues(new Uint8Array(32)));
   const me = api.currentUser();
   b.disabled = true;
   try {
-    await saveFeed({ hash: await sha256Hex(key), enabled: true, created_at: new Date().toISOString(), created_by: me?.full_name || '' });
+    await saveFeed({ hash: await sha256Hex(key), enabled: true, include_sensitive: opt.include_sensitive, created_at: new Date().toISOString(), created_by: me?.full_name || '' });
     await renderSettings(el);
     const out = el.querySelector('.xl-out');
-    out.innerHTML = html`<div class="warn-box xl-new"><p><b>انسخ الرابط الآن واحفظه في مكان آمن</b> — لن يظهر مرة أخرى. لا ترسله لأحد؛ من يملكه يرى بيانات الملف.</p>
+    out.innerHTML = html`<div class="warn-box xl-new"><p><b>انسخ الرابط الآن واحفظه في مكان آمن</b> — لن يظهر مرة أخرى. لا ترسله لأحد؛ من يملكه يرى بيانات الملف${opt.include_sensitive ? '، بما فيها أرقام الهوية والإقامة والجوالات والفواتير' : ''}.</p>
       <input class="xl-url" dir="ltr" readonly value="${FEED + key}"><div class="btn-row"><button class="btn btn-primary" data-act="xl-copy">${icon('doc')}<span>نسخ الرابط</span></button></div></div>`;
     el.querySelector('.xl-steps').open = true;
     out.scrollIntoView({ block: 'center' });

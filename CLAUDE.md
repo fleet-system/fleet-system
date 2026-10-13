@@ -46,7 +46,7 @@
 - `.github/workflows/keepalive.yml` يستدعي `keepalive()` يومياً. هي الدالة الوحيدة المسموحة للزائر غير المسجل (مستثناة في tests/security_probe.py). لا تضف غيرها.
 
 ## سجل الإصدارات
-- 1.11: ملف Excel المربوط: دالة Supabase `excel-feed` (supabase/functions/excel-feed، verify_jwt=false، مفتاح يُتحقق منه ببصمة SHA-256 في app_settings.excel_feed)، قسم «ملف Excel المربوط» في الإعدادات للمسؤول، بدون أرقام هوية/جوالات/فواتير. نسخة كاتب XLSX في الدالة يجب أن تبقى مطابقة لـ web/js/xlsx.js. لا تغيير في بنية قاعدة البيانات.
+- 1.11: ملف Excel المربوط: دالة Supabase `excel-feed` (supabase/functions/excel-feed، verify_jwt=false، مفتاح يُتحقق منه ببصمة SHA-256 في app_settings.excel_feed)، قسم «ملف Excel المربوط» في الإعدادات للمسؤول. خيار include_sensitive (بطلب المالك) يضيف أرقام الهوية والإقامة والجوالات والفواتير وورقة الموظفين؛ بدونه لا تظهر. نسخة كاتب XLSX في الدالة يجب أن تبقى مطابقة لـ web/js/xlsx.js. لا تغيير في بنية قاعدة البيانات.
 - 1.10: تفويض السيارة في البطاقة (القسم الثالث تحت المستخدم الحالي): vehicles.card_auth_status / card_auth_expiry، حالة الانتهاء تلقائية، تنبيهات عبر v_document_status (vehicle_authorization) ومدة التنبيه vehicle_auth_alert_days في الإعدادات (0016). الحقول تُقرأ من جدول vehicles مباشرة (ليست في v_vehicles_overview).
 - 1.9: الإعدادات ← إدارة طلبات الصيانة: حذف الطلب إلى «سجل الطلبات المحذوفة» واسترجاعه (archive_request / restore_request، v_requests_archive، 0015). يُسجَّل في سجل التعديلات (ARCHIVE/RESTORE).
 - 1.8: واجهة عصرية (طبقة CSS في آخر app.css: ألوان الشعار، شريط علوي زجاجي، شريط تنقل عائم في الجوال، اسم الشركة بجانب الشعار)، وإصلاح الجداول العريضة التي كانت تدفع الصفحة. لا تغيير في قاعدة البيانات.

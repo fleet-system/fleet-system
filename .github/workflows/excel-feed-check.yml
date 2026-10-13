@@ -1,4 +1,4 @@
-# فحص يدوي لملف Excel المربوط: يتأكد أن الرابط يرفض المفتاح الخاطئ، وأن الملف (عند إعطاء رابط صالح) سليم وبدون أرقام حساسة.
+# فحص يدوي لملف Excel المربوط: يتأكد أن الرابط يرفض المفتاح الخاطئ، وأن الملف (عند إعطاء رابط صالح) سليم، وبدون أرقام حساسة إذا كان الرابط بدونها.
 name: excel-feed-check
 on:
   workflow_dispatch:
@@ -32,7 +32,9 @@ jobs:
           import openpyxl, re, sys
           wb = openpyxl.load_workbook('feed.xlsx')
           print('sheets:', len(wb.sheetnames))
-          assert len(wb.sheetnames) == 9, wb.sheetnames
+          sensitive = len(wb.sheetnames) == 10
+          assert len(wb.sheetnames) in (9, 10), wb.sheetnames
+          print('mode:', 'with sensitive data' if sensitive else 'without sensitive data')
           bad = []
           for ws in wb.worksheets:
               rows = list(ws.iter_rows(values_only=True))
@@ -41,6 +43,7 @@ jobs:
                   for v in r:
                       s = '' if v is None else str(v)
                       if re.search(r'(\+?966|\b0)5\d{8}\b', s) or re.fullmatch(r'[12]\d{9}', s): bad.append(1)
-          assert not bad, f'{len(bad)} sensitive-looking cells'
-          print('OK: workbook valid, no ID or mobile numbers')
+          if not sensitive:
+              assert not bad, f'{len(bad)} sensitive-looking cells'
+          print('OK: workbook valid')
           PY

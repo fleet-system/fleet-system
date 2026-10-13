@@ -2,7 +2,7 @@
 // Usage: node tests/excel_feed_test.mjs OUTDIR
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { DATASETS, keyAllowed, sha256Hex, buildWorkbook, authStateText } from '../supabase/functions/excel-feed/feed.js';
+import { DATASETS, SENSITIVE_DATASETS, keyAllowed, sha256Hex, buildWorkbook, authStateText } from '../supabase/functions/excel-feed/feed.js';
 
 const OUT = process.argv[2] || '/tmp/excel-feed'; mkdirSync(OUT, { recursive: true });
 const passed = [], problems = [];
@@ -41,6 +41,16 @@ ok(authStateText('authorized', '2026-10-01', 30, T) === 'منتهٍ', 'auth expi
 ok(authStateText('authorized', null, 30, T) === 'غير محدد التاريخ', 'auth no date');
 ok(authStateText('not_authorized', '2026-10-01', 30, T) === 'غير مفوضة', 'not authorized never expired');
 
+// بيانات تجريبية حساسة (وهمية) حتى نتأكد أنها تظهر فقط في الوضع الحساس
+const sqlRun = (sql) => execFileSync('psql', ['-h', '/tmp', '-p', '5433', '-U', 'postgres', '-X', '-q', '-d', 'fleet_ui', '-c', sql]);
+const V1 = 'b0000000-0000-0000-0000-000000000001';
+const E1 = q('select id from employees order by code limit 1')[0].id;
+sqlRun(`insert into vehicle_private(vehicle_id, current_user_id_no, owner_id_no) values ('${V1}', '1999999991', '7001999999') on conflict (vehicle_id) do update set current_user_id_no = excluded.current_user_id_no, owner_id_no = excluded.owner_id_no;
+  update vehicles set current_user_mobile = '+966599999991' where id = '${V1}';
+  insert into employee_private(employee_id, iqama_no, mobile, driving_license_no) values ('${E1}', '2999999992', '+966599999992', 'DL-TEST-1') on conflict (employee_id) do update set iqama_no = excluded.iqama_no, mobile = excluded.mobile, driving_license_no = excluded.driving_license_no;
+  update oil_changes set invoice_no = 'INV-TEST-77' where id = (select id from oil_changes where deleted_at is null order by change_date desc limit 1);`);
+const SENS = ['1999999991', '7001999999', '0599999991', '2999999992', '0599999992', 'DL-TEST-1', 'INV-TEST-77'];
+
 // بيانات حقيقية من قاعدة الاختبار
 const d = {}; for (const [n, path] of Object.entries(DATASETS)) d[n] = pr(path);
 const blob = buildWorkbook(d);
@@ -74,6 +84,25 @@ ok(r.headers['السيارات'].includes('حالة انتهاء التفويض'
 // الجدول الحساس لا يُقرأ أصلاً
 ok(!Object.values(DATASETS).some((p) => /private|attachments|profiles|user_permissions|audit/.test(p)), 'sensitive tables never queried');
 ok(Object.values(DATASETS).every((p) => !/invoice_no|mobile|id_no|iqama|doc_no/.test(p)), 'sensitive columns never selected');
+
+const cells = (f) => JSON.parse(execFileSync('python3', ['-I', '-c', `
+import json, sys, openpyxl
+wb = openpyxl.load_workbook(sys.argv[1]); vals = []
+for ws in wb.worksheets:
+    for r in ws.iter_rows(values_only=True):
+        vals += ['' if v is None else str(v) for v in r]
+print(json.dumps({'sheets': wb.sheetnames, 'vals': vals}, ensure_ascii=False))
+`, f]).toString());
+const n = cells(file);
+ok(SENS.every((x) => !n.vals.includes(x)), 'normal link: none of the sensitive test values appear');
+// الوضع الحساس
+const ds = { ...d }; for (const [k, path] of Object.entries(SENSITIVE_DATASETS)) ds[k] = pr(path);
+const fileS = `${OUT}/fleet-data-sensitive.xlsx`;
+writeFileSync(fileS, Buffer.from(await buildWorkbook(ds, new Date(), { sensitive: true }).arrayBuffer()));
+const sv = cells(fileS);
+ok(sv.sheets.includes('الموظفون') && sv.sheets.length === 10, `sensitive link adds the employees sheet [${sv.sheets}]`);
+for (const x of SENS) ok(sv.vals.includes(x), `sensitive link shows ${x}`);
+ok(sv.vals.some((x) => x.includes('يحتوي بيانات حساسة')), 'sensitive file carries a clear warning');
 
 for (const x of passed) console.log('PASS', x);
 for (const x of problems) console.log('FAIL', x);

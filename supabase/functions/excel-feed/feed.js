@@ -1,5 +1,6 @@
 // ملف Excel المربوط: يبني مصنفاً بأوراق عربية من بيانات النظام (للقراءة فقط).
-// لا يحتوي أي أرقام هوية أو إقامة أو جوالات أو أرقام فواتير أو وثائق: الأعمدة محددة هنا صراحةً.
+// الوضع العادي: بدون أرقام الهوية والإقامة والجوالات والفواتير والوثائق (الأعمدة محددة هنا صراحةً).
+// إذا اختار المسؤول «تضمين البيانات الحساسة» عند إنشاء الرابط، تُجلب SENSITIVE_DATASETS وتُضاف أعمدتها وورقة الموظفين.
 import { writeXlsx } from './xlsx.js';
 
 const L = {
@@ -34,6 +35,18 @@ export const DATASETS = {
   expenses: 'v_expenses?select=category,ref_no,expense_date,vehicle_id,site_id,owner_company_id,subtotal,vat_amount,total,payment_status&order=expense_date.desc',
   settings: 'app_settings?select=key,value&key=in.(excel_feed,vehicle_auth_alert_days)',
 };
+// تُجلب فقط عندما يكون الرابط منشأً مع خيار «تضمين البيانات الحساسة»
+export const SENSITIVE_DATASETS = {
+  vpriv: 'vehicle_private?select=vehicle_id,current_user_id_no,owner_id_no',
+  vmobile: 'vehicles?select=id,current_user_mobile&deleted_at=is.null',
+  employees: 'employees?select=id,code,full_name,job_title,company_id,site_id,status&deleted_at=is.null&order=code',
+  epriv: 'employee_private?select=employee_id,iqama_no,mobile,driving_license_no',
+  docno: 'v_document_status?select=owner_id,doc_type,doc_no',
+  oilinv: 'oil_changes?select=oil_no,invoice_no&deleted_at=is.null',
+  maintinv: 'maintenance?select=maint_no,invoice_no&deleted_at=is.null',
+};
+export const feedConfig = (settingsRows) => (settingsRows || []).find((r) => r.key === 'excel_feed')?.value || null;
+const localMobile = (m) => { const s = String(m || '').replace(/\s+/g, ''); const x = s.match(/^(?:\+?966|0)?(5\d{8})$/); return x ? `0${x[1]}` : s; };
 
 // مقارنة المفتاح بالبصمة المحفوظة (SHA-256) — المفتاح نفسه لا يُحفظ في أي مكان
 export async function sha256Hex(text) {
@@ -61,8 +74,8 @@ export function authStateText(status, expiry, alertDays, today = todayRiyadh()) 
   return d <= alertDays ? 'غير منتهٍ (اقترب الانتهاء)' : 'غير منتهٍ';
 }
 
-// d: { name: rows[] } لكل مجموعة في DATASETS
-export function buildSheets(d, now = new Date()) {
+// d: { name: rows[] } لكل مجموعة في DATASETS (+ SENSITIVE_DATASETS عند sensitive)
+export function buildSheets(d, now = new Date(), { sensitive = false } = {}) {
   const site = new Map(d.sites.map((s) => [s.id, s.name]));
   const comp = new Map(d.companies.map((c) => [c.id, c.name]));
   const veh = new Map(d.vlist.map((v) => [v.id, v]));
@@ -72,13 +85,22 @@ export function buildSheets(d, now = new Date()) {
   const vcode = (id) => (id && veh.get(id) ? veh.get(id).code : '');
   const vplate = (id) => (id && veh.get(id) ? veh.get(id).plate_no : '');
   const T = (header, value, type = 'text', width) => ({ header, value, type, width });
+  const vpriv = new Map((d.vpriv || []).map((x) => [x.vehicle_id, x]));
+  const vmob = new Map((d.vmobile || []).map((x) => [x.id, x.current_user_mobile]));
+  const epriv = new Map((d.epriv || []).map((x) => [x.employee_id, x]));
+  const docNo = (id, t) => (d.docno || []).find((x) => x.owner_id === id && x.doc_type === t)?.doc_no || '';
+  const oilInv = new Map((d.oilinv || []).map((x) => [x.oil_no, x.invoice_no]));
+  const maintInv = new Map((d.maintinv || []).map((x) => [x.maint_no, x.invoice_no]));
 
   const sheets = [
     { name: 'السيارات', rows: d.vehicles, columns: [
       T('الرقم الداخلي', (r) => r.code), T('رقم اللوحة', (r) => r.plate_no), T('الماركة', (r) => r.make), T('الطراز', (r) => r.model), T('الموديل', (r) => r.manufacture_year, 'int', 10),
       T('نوع التسجيل', (r) => r.registration_type), T('الشركة المالكة', (r) => r.owner_company_name), T('الموقع / المشروع', (r) => r.site_name),
       T('الحالة التشغيلية', (r) => (r.op_state === 'other' ? r.op_state_text || 'أخرى' : lab('op_state', r.op_state) || lab('op_status', r.op_status))),
-      T('حالة السيارة', (r) => lab('op_status', r.op_status)), T('المستخدم الحالي', (r) => r.current_user_name), T('السائق المسؤول', (r) => r.driver_name),
+      T('حالة السيارة', (r) => lab('op_status', r.op_status)), T('المستخدم الحالي', (r) => r.current_user_name),
+      ...(sensitive ? [T('هوية المستخدم', (r) => vpriv.get(r.id)?.current_user_id_no), T('جوال المستخدم', (r) => localMobile(vmob.get(r.id)))] : []),
+      T('السائق المسؤول', (r) => r.driver_name),
+      ...(sensitive ? [T('إقامة السائق', (r) => epriv.get(r.current_driver_id)?.iqama_no), T('جوال السائق', (r) => localMobile(epriv.get(r.current_driver_id)?.mobile)), T('هوية المالك', (r) => vpriv.get(r.id)?.owner_id_no)] : []),
       T('قراءة العداد (كم)', (r) => r.odometer, 'int'), T('موعد تغيير الزيت القادم (كم)', (r) => r.oil_next_odometer, 'int'), T('المتبقي للزيت (كم)', (r) => r.oil_remaining_km, 'int'),
       T('حالة الزيت', (r) => lab('oil_status', r.oil_status)),
       T('انتهاء الاستمارة', (r) => doc(r.id, 'registration').expiry_date, 'date'), T('حالة الاستمارة', (r) => lab('doc_status', doc(r.id, 'registration').status)),
@@ -89,7 +111,8 @@ export function buildSheets(d, now = new Date()) {
       T('إجمالي تكلفة الصيانة (ر.س)', (r) => r.cost_maint_total, 'money'),
     ] },
     { name: 'الوثائق والتنبيهات', rows: d.docs.filter((x) => x.status !== 'valid').sort((a, b) => (a.days_left ?? 1e9) - (b.days_left ?? 1e9)), columns: [
-      T('السيارة / الموظف', (r) => r.subject_label, 'text', 32), T('نوع الوثيقة', (r) => lab('doc_type', r.doc_type)), T('تاريخ الانتهاء', (r) => r.expiry_date, 'date'),
+      T('السيارة / الموظف', (r) => r.subject_label, 'text', 32), T('نوع الوثيقة', (r) => lab('doc_type', r.doc_type)),
+      ...(sensitive ? [T('رقم الوثيقة', (r) => docNo(r.owner_id, r.doc_type))] : []), T('تاريخ الانتهاء', (r) => r.expiry_date, 'date'),
       T('الأيام المتبقية', (r) => r.days_left, 'int'), T('الحالة', (r) => lab('doc_status', r.status)), T('الموقع', (r) => site.get(r.site_id) || ''), T('الشركة', (r) => comp.get(r.company_id) || ''),
     ] },
     { name: 'المتابعات', rows: d.followups, columns: [
@@ -100,12 +123,13 @@ export function buildSheets(d, now = new Date()) {
     { name: 'تغيير الزيت', rows: d.oil, columns: [
       T('رقم العملية', (r) => r.oil_no), T('التاريخ', (r) => r.change_date, 'date'), T('الرقم الداخلي', (r) => vcode(r.vehicle_id)), T('اللوحة', (r) => vplate(r.vehicle_id)),
       T('الموقع', (r) => site.get(r.site_id) || ''), T('العداد (كم)', (r) => r.odometer, 'int'), T('الفترة (كم)', (r) => r.interval_km, 'int'), T('التغيير القادم (كم)', (r) => r.next_odometer, 'int'),
-      T('الورشة', (r) => r.workshop), T('نوع الزيت', (r) => r.oil_type), T('الإجمالي (ر.س)', (r) => r.total, 'money'), T('السداد', (r) => lab('payment_status', r.payment_status)),
+      T('الورشة', (r) => r.workshop), T('نوع الزيت', (r) => r.oil_type), ...(sensitive ? [T('رقم الفاتورة', (r) => oilInv.get(r.oil_no))] : []),
+      T('الإجمالي (ر.س)', (r) => r.total, 'money'), T('السداد', (r) => lab('payment_status', r.payment_status)),
     ] },
     { name: 'الصيانة', rows: d.maint, columns: [
       T('رقم العملية', (r) => r.maint_no), T('التاريخ', (r) => r.maint_date, 'date'), T('الرقم الداخلي', (r) => vcode(r.vehicle_id)), T('اللوحة', (r) => vplate(r.vehicle_id)),
       T('الموقع', (r) => site.get(r.site_id) || ''), T('العداد (كم)', (r) => r.odometer, 'int'), T('نوع الصيانة', (r) => r.maint_type), T('العطل', (r) => r.fault_description, 'wrap'),
-      T('الورشة', (r) => r.workshop), T('قبل الضريبة (ر.س)', (r) => r.subtotal, 'money'), T('الضريبة (ر.س)', (r) => r.vat_amount, 'money'), T('الإجمالي (ر.س)', (r) => r.total, 'money'),
+      T('الورشة', (r) => r.workshop), ...(sensitive ? [T('رقم الفاتورة', (r) => maintInv.get(r.maint_no))] : []), T('قبل الضريبة (ر.س)', (r) => r.subtotal, 'money'), T('الضريبة (ر.س)', (r) => r.vat_amount, 'money'), T('الإجمالي (ر.س)', (r) => r.total, 'money'),
       T('السداد', (r) => lab('payment_status', r.payment_status)),
     ] },
     { name: 'طلبات الصيانة', rows: d.requests, columns: [
@@ -124,13 +148,23 @@ export function buildSheets(d, now = new Date()) {
       T('قبل الضريبة (ر.س)', (r) => r.subtotal, 'money'), T('الضريبة (ر.س)', (r) => r.vat_amount, 'money'), T('الإجمالي (ر.س)', (r) => r.total, 'money'), T('السداد', (r) => lab('payment_status', r.payment_status)),
     ] },
   ];
+  if (sensitive) {
+    const EST = { active: 'على رأس العمل', on_leave: 'في إجازة', terminated: 'منتهي الخدمة', other: 'أخرى' };
+    sheets.splice(1, 0, { name: 'الموظفون', rows: d.employees || [], columns: [
+      T('الرقم الوظيفي', (r) => r.code), T('الاسم', (r) => r.full_name, 'text', 26), T('المهنة', (r) => r.job_title), T('الحالة', (r) => EST[r.status] || r.status),
+      T('الموقع', (r) => site.get(r.site_id) || ''), T('الشركة', (r) => comp.get(r.company_id) || ''),
+      T('رقم الإقامة / الهوية', (r) => epriv.get(r.id)?.iqama_no), T('الجوال', (r) => localMobile(epriv.get(r.id)?.mobile)), T('رقم رخصة القيادة', (r) => epriv.get(r.id)?.driving_license_no),
+      T('انتهاء الإقامة', (r) => doc(r.id, 'iqama').expiry_date, 'date'), T('حالة الإقامة', (r) => lab('doc_status', doc(r.id, 'iqama').status)),
+      T('انتهاء رخصة القيادة', (r) => doc(r.id, 'driving_license').expiry_date, 'date'),
+    ] });
+  }
   const stamp = new Date(now.getTime() + 3 * 3600e3).toISOString().slice(0, 16).replace('T', ' ').replaceAll('-', '/');
   sheets.push({ name: 'معلومات', rows: [
     ['آخر تحديث (توقيت الرياض)', stamp], ['المصدر', 'نظام إدارة الأسطول والمواقع الزراعية'], ['ملاحظة', 'هذا الملف للقراءة فقط. التعديل يتم من الموقع.'],
-    ['الأمان', 'لا يحتوي أرقام الهوية أو الإقامة أو الجوالات أو أرقام الفواتير.'],
+    ['الأمان', sensitive ? 'تنبيه: هذا الملف يحتوي بيانات حساسة (أرقام الهوية والإقامة والجوالات والفواتير). لا تشاركه مع أحد.' : 'لا يحتوي أرقام الهوية أو الإقامة أو الجوالات أو أرقام الفواتير.'],
     ...sheets.map((s) => [`عدد صفوف «${s.name}»`, String(s.rows.length)]),
   ], columns: [T('البند', (r) => r[0], 'text', 30), T('القيمة', (r) => r[1], 'text', 60)] });
   return sheets;
 }
 
-export function buildWorkbook(d, now = new Date()) { return writeXlsx(buildSheets(d, now)); }
+export function buildWorkbook(d, now = new Date(), opts = {}) { return writeXlsx(buildSheets(d, now, opts)); }
