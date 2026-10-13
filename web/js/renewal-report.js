@@ -9,6 +9,10 @@ import { customFields } from './vehicle-config.js';
 import { saveBlob } from './xlsx.js';
 
 const NR = 'غير مسجل';
+// أقسام التقرير التي يختارها المستخدم قبل التنزيل (رأس التقرير ورقم اللوحة يظهران دائماً)
+export const REPORT_PARTS = [['vehicle', 'بيانات المركبة'], ['owner', 'المالك'], ['reg', 'رخصة السير (الاستمارة)'], ['insp', 'الفحص الدوري'], ['ins', 'التأمين'],
+  ['fines', 'المخالفات والرسوم'], ['follow', 'متابعة التجديد'], ['due', 'ملخص ما يحتاج تجديداً'], ['sign', 'خانات التوقيع']];
+const ALL_PARTS = REPORT_PARTS.map(([k]) => k);
 const COMPANY = 'شركة روى الرمال الزراعية';
 const PAGE_W = 794, PAGE_H = 1123, SCALE = 2; // A4 عند 96 نقطة/بوصة
 const STATE_TEXT = { valid: 'سارية', expiring: 'تنتهي قريباً (30 يوماً أو أقل)', expired: 'منتهية', none: NR };
@@ -79,33 +83,33 @@ export function renewalModel({ v, docs, priv, sens }) {
   const followUp = extra(v, /مسؤول|متابع/);
 
   const sections = [
-    ['بيانات المركبة', [
+    ['vehicle', 'بيانات المركبة', [
       ['رقم اللوحة', val(v.plate_no)], ['الرقم الداخلي', val(v.code)], ['رقم الهيكل', val(v.vin)],
       ['الرقم التسلسلي للاستمارة', val(v.registration_serial)], ['الماركة', val(v.make)], ['طراز المركبة', val(v.model)],
       ['موديل المركبة', val(v.manufacture_year)], ['سنة الصنع', val(v.manufacture_year)], ['نوع التسجيل', val(v.registration_type)],
     ]],
-    ['المالك', [
+    ['owner', 'المالك', [
       ['اسم المالك / الشركة المالكة', val(v.owner_company_name)],
       ['رقم هوية المالك', sens ? val(ownerNo) : sensNo(null)], ['نوع الهوية', sens ? idKind(ownerNo) : sensNo(null)],
     ]],
-    ['رخصة السير (الاستمارة)', [
+    ['reg', 'رخصة السير (الاستمارة)', [
       ['تاريخ انتهاء الاستمارة', reg?.expiry_date ? date(reg.expiry_date) : NR],
       ['الحالة', state(reg?.expiry_date).text], ['المتبقي', state(reg?.expiry_date).days],
       ['تاريخ الإصدار', reg?.issue_date ? date(reg.issue_date) : NR],
     ]],
-    ['الفحص الدوري', [
+    ['insp', 'الفحص الدوري', [
       ['تاريخ انتهاء الفحص', insp?.expiry_date ? date(insp.expiry_date) : NR],
       ['الحالة', state(insp?.expiry_date).text], ['المتبقي', state(insp?.expiry_date).days],
       ['تاريخ الفحص (الإصدار)', insp?.issue_date ? date(insp.issue_date) : NR], ['رقم شهادة الفحص', insp ? sensNo(insp.doc_no) : NR],
     ], inspAll.length > 1 ? inspAll.map((d) => [date(d.issue_date) || NR, date(d.expiry_date) || NR, STATE_TEXT[docState(d.expiry_date).key]]) : null],
-    ['التأمين', [
+    ['ins', 'التأمين', [
       ['رقم وثيقة التأمين', insNo.length ? insNo.map(([, x]) => x).join('، ') : NR],
       ['تاريخ بداية التأمين', insStart.length ? insStart.map(([, x]) => x).join('، ') : NR],
       ['تاريخ انتهاء التأمين', v.insurance_expiry ? date(v.insurance_expiry) : NR],
       ['الحالة', state(v.insurance_expiry).text], ['المتبقي', state(v.insurance_expiry).days],
     ]],
-    ['المخالفات والرسوم', fines.length ? fines : [['المخالفات المرورية', NR], ['الرسوم المستحقة', NR]]],
-    ['متابعة التجديد', [
+    ['fines', 'المخالفات والرسوم', fines.length ? fines : [['المخالفات المرورية', NR], ['الرسوم المستحقة', NR]]],
+    ['follow', 'متابعة التجديد', [
       ['المسؤول عن متابعة التجديد', followUp.length ? followUp.map(([, x]) => x).join('، ') : NR],
       ['المستخدم الحالي', val(v.current_user_name)], ['المفوّض', val(v.authorized_name)],
       ['المشروع الحالي', val(v.site_name)], ['الحالة التشغيلية', val(op.text)],
@@ -144,7 +148,8 @@ th{background:#eef2ef;font-size:12px}
 .foot{margin-top:16px;color:#8a938d;font-size:10.5px;text-align:center}
 `;
 
-export function renewalHtml(m, { logo = '', preparedBy = '', now = new Date() } = {}) {
+export function renewalHtml(m, { logo = '', preparedBy = '', now = new Date(), parts = ALL_PARTS } = {}) {
+  const on = (k) => parts.includes(k);
   const row = ([k, x]) => html`<tr><td class="k">${k}</td><td class="${x === NR ? 'nr' : ''}">${x}</td></tr>`;
   return html`<div class="rp" xmlns="http://www.w3.org/1999/xhtml"><style>${raw(CSS)}</style>
     <div class="rb hd">${raw(logo ? html`<img src="${logo}" alt=""/>` : '')}
@@ -152,10 +157,10 @@ export function renewalHtml(m, { logo = '', preparedBy = '', now = new Date() } 
       <div class="meta">تاريخ التقرير: ${date(todayISO())}<br/>الوقت: ${dateTime(now.toISOString()).split(' ').slice(1).join(' ')}<br/>${preparedBy ? `أعدّه: ${preparedBy}` : ''}</div></div>
     <div class="rb ttl"><h1>تقرير تجديد المركبة</h1><div class="plate" data-plate="">${m.plate}</div></div>
     <div class="rb sub">الرقم الداخلي: ${m.v.code} — البيانات من ملف هذه المركبة فقط. «${NR}» تعني أن المعلومة غير موجودة في النظام.</div>
-    <div class="rb">${raw(m.due.length ? html`<div class="due"><b>يحتاج إلى تجديد/متابعة:</b> ${m.due.map(([n, iso, s]) => `${n} (${iso ? `${STATE_TEXT[s.key]} — ${date(iso)}` : NR})`).join('، ')}</div>` : '<div class="ok">جميع الوثائق المسجلة سارية لأكثر من 30 يوماً.</div>')}</div>
-    ${raw(m.sections.map(([t, rows, hist]) => html`<div class="rb"><h2>${t}</h2><table>${raw(rows.map(row).join(''))}</table>
+    ${raw(!on('due') ? '' : html`<div class="rb">${raw(m.due.length ? html`<div class="due"><b>يحتاج إلى تجديد/متابعة:</b> ${m.due.map(([n, iso, s]) => `${n} (${iso ? `${STATE_TEXT[s.key]} — ${date(iso)}` : NR})`).join('، ')}</div>` : '<div class="ok">جميع الوثائق المسجلة سارية لأكثر من 30 يوماً.</div>')}</div>`)}
+    ${raw(m.sections.filter(([k]) => on(k)).map(([, t, rows, hist]) => html`<div class="rb"><h2>${t}</h2><table>${raw(rows.map(row).join(''))}</table>
       ${raw(hist ? html`<table><tr><th>تاريخ الفحص</th><th>تاريخ الانتهاء</th><th>الحالة</th></tr>${raw(hist.map(([a, b, c]) => html`<tr><td>${a}</td><td>${b}</td><td>${c}</td></tr>`).join(''))}</table>` : '')}</div>`).join(''))}
-    <div class="rb sign"><div>المسؤول عن التجديد</div><div>المدير المختص</div><div>الختم</div></div>
+    ${raw(on('sign') ? '<div class="rb sign"><div>المسؤول عن التجديد</div><div>المدير المختص</div><div>الختم</div></div>' : '')}
     <div class="rb foot">${COMPANY} — تقرير تجديد المركبة ${m.plate} — صدر من النظام بتاريخ ${date(todayISO())}</div>
   </div>`;
 }
@@ -236,11 +241,13 @@ function printFallback(markup, name) {
 }
 
 // الزر: تقرير تجديد المركبة PDF
-export async function renewalReport(id) {
+export async function renewalReport(id, parts = ALL_PARTS) {
+  parts = parts.filter((k) => ALL_PARTS.includes(k));
+  if (!parts.length) throw new Error('اختر قسماً واحداً على الأقل.');
   const d = await loadRenewalData(id);
   const m = renewalModel(d);
   const name = reportFileName(d.v.plate_no);
-  const markup = String(renewalHtml(m, { logo: await dataUrl('logo-mark.png') || await dataUrl('logo.png'), preparedBy: api.currentUser()?.full_name || '' }));
+  const markup = String(renewalHtml(m, { logo: await dataUrl('logo-mark.png') || await dataUrl('logo.png'), preparedBy: api.currentUser()?.full_name || '', parts }));
   let pages;
   try { pages = await renderPages(markup); } catch (e) { printFallback(markup, name); return { name, fallback: true }; }
   const blob = pdfFromJpegs(pages, name.replace(/\.pdf$/, ''));

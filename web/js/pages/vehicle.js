@@ -404,10 +404,20 @@ export async function renderVehicle(el, id, params) {
     if (act.endsWith('-edit') && opsMap[ek]) { const [fn, t, list] = opsMap[ek]; const row = list.find((x) => x.id === b.dataset.id); if (row && await fn(null, row)) { saved(); reload(t); } return; }
     if (act === 'ho-approve') { const row = hand.find((x) => x.id === b.dataset.id); if (row && await approveHandover(row)) reload('hand'); return; }
     if (act === 'renewal-pdf') {
-      const b = e.target.closest('[data-act]'); b.disabled = true; const old = b.innerHTML; b.querySelector('span').textContent = 'جارٍ تجهيز التقرير…';
-      try { const { renewalReport } = await import('../renewal-report.js'); const r = await renewalReport(v.id); toast(r.fallback ? 'افتح نافذة الطباعة واختر «حفظ PDF».' : `تم تنزيل ${r.name}`, 'ok'); }
-      catch (err) { toast(err.message || 'تعذر إنشاء التقرير', 'error'); }
-      finally { b.disabled = false; b.innerHTML = old; }
+      // اختيار محتوى التقرير قبل التنزيل
+      const { renewalReport, REPORT_PARTS } = await import('../renewal-report.js');
+      const r = await openForm({
+        title: 'تقرير تجديد المركبة PDF', submitText: 'تنزيل PDF', draft: false,
+        intro: html`اختر الأقسام التي تريد إدراجها في التقرير. رقم اللوحة <b>${v.plate_no}</b> يظهر دائماً في رأس التقرير وفي اسم الملف.`,
+        fields: REPORT_PARTS.map(([k, t]) => ({ name: `part_${k}`, label: t, type: 'checkbox', full: true })),
+        values: Object.fromEntries(REPORT_PARTS.map(([k]) => [`part_${k}`, true])),
+        onSubmit: async (val) => {
+          const parts = REPORT_PARTS.map(([k]) => k).filter((k) => val[`part_${k}`]);
+          if (!parts.length) throw userError('اختر قسماً واحداً على الأقل.');
+          return renewalReport(v.id, parts);
+        },
+      });
+      if (r) toast(r.fallback ? 'افتح نافذة الطباعة واختر «حفظ PDF».' : `تم تنزيل \u2068${r.name}\u2069`, 'ok');
       return;
     }
     if (act === 'print') { el.classList.add('printing'); window.print(); el.classList.remove('printing'); return; }

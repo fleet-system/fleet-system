@@ -40,7 +40,8 @@ with sync_playwright() as p:
         vid = V[n]
         g.goto(f'{BASE}#/vehicles/{vid}?r={os.urandom(3).hex()}'); g.wait_for_selector('.vhead')
         ok(g.locator('[data-act=renewal-pdf]').count() == 1 and 'تقرير تجديد المركبة PDF' in g.inner_text('[data-act=renewal-pdf]'), f'[{n}] button «تقرير تجديد المركبة PDF» in the card')
-        with g.expect_download(timeout=60000) as dl: g.click('[data-act=renewal-pdf]')
+        g.click('[data-act=renewal-pdf]'); g.wait_for_selector('.modal [name=part_vehicle]')
+        with g.expect_download(timeout=60000) as dl: g.click('.modal [data-save]')
         d = dl.value; path = f'{OUT}/{n}-{d.suggested_filename}'; d.save_as(path)
         plate = PLATE(vid); latin = ''.join(ch for ch in plate if ch.isascii() and ch.isalpha()).upper(); digits = ''.join(ch for ch in plate if ch.isdigit())
         want = f'تقرير-تجديد-المركبة-{latin}-{digits}.pdf' if latin else f"تقرير-تجديد-المركبة-{plate.replace(' ', '-')}.pdf"
@@ -52,7 +53,7 @@ with sync_playwright() as p:
         names[n] = d.suggested_filename
         # the report content comes from this vehicle only
         m = g.evaluate("""async (id) => { const r = await import('./js/renewal-report.js'); const d = await r.loadRenewalData(id); const m = r.renewalModel(d);
-            const html = String(r.renewalHtml(m, {})); const rows = Object.fromEntries(m.sections.flatMap(([, rs]) => rs));
+            const html = String(r.renewalHtml(m, {})); const rows = Object.fromEntries(m.sections.flatMap(([, , rs]) => rs));
             return { plate: m.plate, rows, html }; }""", vid)
         ok(m['plate'] == plate and plate in m['html'], f'[{n}] plate shown in the report')
         ok(m['rows']['رقم الهيكل'] == (VIN(vid) or 'غير مسجل'), f"[{n}] VIN from this vehicle [{m['rows']['رقم الهيكل']}]")
@@ -71,19 +72,38 @@ with sync_playwright() as p:
             ok(m['rows']['رقم الهيكل'] == 'غير مسجل' and m['rows']['تاريخ انتهاء التأمين'] == 'غير مسجل', '[5] missing data says «غير مسجل», nothing guessed')
         ok(m['rows']['رقم وثيقة التأمين'] == 'غير مسجل' and m['rows']['المخالفات المرورية'] == 'غير مسجل', f'[{n}] unrecorded insurance number / violations say «غير مسجل»')
     ok(len(set(names.values())) == 3, 'each card gives its own file')
+    # choose the sections before downloading
+    g.goto(f'{BASE}#/vehicles/{V[1]}?r=x'); g.wait_for_selector('.vhead'); g.click('[data-act=renewal-pdf]'); g.wait_for_selector('.modal [name=part_vehicle]')
+    labels = g.evaluate("[...document.querySelectorAll('.modal label.check span')].map(x => x.textContent)")
+    ok(labels == ['بيانات المركبة', 'المالك', 'رخصة السير (الاستمارة)', 'الفحص الدوري', 'التأمين', 'المخالفات والرسوم', 'متابعة التجديد', 'ملخص ما يحتاج تجديداً', 'خانات التوقيع'], f'section choices {labels}')
+    ok(g.evaluate("[...document.querySelectorAll('.modal input[type=checkbox]')].every(x => x.checked)"), 'all sections chosen by default')
+    ok('ب ر د DRB 6623' in g.inner_text('.modal'), 'dialog shows the plate')
+    g.screenshot(path=f'{OUT}/0-choose.png')
+    for k in ['vehicle', 'owner', 'reg', 'insp', 'ins', 'fines', 'follow', 'due', 'sign']: g.uncheck(f'.modal [name=part_{k}]')
+    g.click('.modal [data-save]'); g.wait_for_timeout(400)
+    ok('اختر قسماً واحداً على الأقل' in g.inner_text('.modal'), 'nothing chosen -> asks to choose a section')
+    g.check('.modal [name=part_ins]'); g.check('.modal [name=part_insp]')
+    with g.expect_download(timeout=60000) as dl: g.click('.modal [data-save]')
+    pth = f'{OUT}/partial-{dl.value.suggested_filename}'; dl.value.save_as(pth)
+    ok(dl.value.suggested_filename == names[1] and pdf_info(pth).get('pages', 0) >= 1, 'download with only the chosen sections works')
+    subprocess.run(['pdftoppm', '-r', '60', '-png', '-f', '1', '-l', '1', pth, f'{OUT}/partial-page'], capture_output=True)
+    part = g.evaluate("""async (id) => { const r = await import('./js/renewal-report.js'); const m = r.renewalModel(await r.loadRenewalData(id)); return String(r.renewalHtml(m, { parts: ['ins', 'insp'] })); }""", V[1])
+    ok('التأمين' in part and 'الفحص الدوري' in part and 'رقم الهيكل' not in part and 'المخالفات' not in part and 'الختم' not in part and 'ب ر د DRB 6623' in part, 'only the chosen sections are in the report (plate always shown)')
     g.goto(f'{BASE}#/vehicles/{V[1]}'); g.wait_for_selector('.vhead'); g.screenshot(path=f'{OUT}/0-card-button.png')
     c.close()
     # without view_sensitive: owner ID hidden
     c, g = new_ctx(b); login(g, 'viewer@test.local')
-    m = g.evaluate("""async (id) => { const r = await import('./js/renewal-report.js'); const m = r.renewalModel(await r.loadRenewalData(id)); return Object.fromEntries(m.sections.flatMap(([, rs]) => rs)); }""", V[1])
+    m = g.evaluate("""async (id) => { const r = await import('./js/renewal-report.js'); const m = r.renewalModel(await r.loadRenewalData(id)); return Object.fromEntries(m.sections.flatMap(([, , rs]) => rs)); }""", V[1])
     ok('مخفي' in m['رقم هوية المالك'] and '7000000001' not in json.dumps(m, ensure_ascii=False), 'viewer: owner ID hidden')
     g.goto(f'{BASE}#/vehicles/{V[1]}'); g.wait_for_selector('.vhead')
-    with g.expect_download(timeout=60000) as dl: g.click('[data-act=renewal-pdf]')
+    g.click('[data-act=renewal-pdf]'); g.wait_for_selector('.modal [name=part_vehicle]')
+    with g.expect_download(timeout=60000) as dl: g.click('.modal [data-save]')
     ok(dl.value.suggested_filename == names[1], 'viewer can download the report too')
     c.close()
     # mobile
     c, g = new_ctx(b, 390); login(g); g.goto(f'{BASE}#/vehicles/{V[2]}'); g.wait_for_selector('.vhead')
-    with g.expect_download(timeout=60000) as dl: g.click('[data-act=renewal-pdf]')
+    g.click('[data-act=renewal-pdf]'); g.wait_for_selector('.modal [name=part_vehicle]')
+    with g.expect_download(timeout=60000) as dl: g.click('.modal [data-save]')
     ok(dl.value.suggested_filename == names[2], 'works on a phone-size screen')
     c.close(); b.close()
 
