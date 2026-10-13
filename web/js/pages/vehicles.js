@@ -54,6 +54,14 @@ export function opStatusFor(state, text) {
   if (/صيان|ورش/.test(t)) return 'under_maintenance';
   return 'working';
 }
+// خانة السيارة في لوحة التحكم (داخل/خارج المواقع للسيارات التي تعمل، متوقفة، متضررة بحادث، في الورشة)
+export const PLACES = [['inside', 'داخل المواقع'], ['outside', 'خارج المواقع'], ['stopped', 'متوقفة'], ['accident', 'متضررة بحادث'], ['workshop', 'في الورشة']];
+export function placeOf(v) {
+  if (v.op_status === 'stopped') return 'stopped';
+  if (v.op_status === 'accident_damaged') return 'accident';
+  if (v.op_status === 'under_maintenance' || v.location_status === 'in_workshop') return 'workshop';
+  return v.location_status === 'outside_site' ? 'outside' : 'inside';
+}
 export const opChip = (v) => { const o = opStateOf(v); return o.key ? html`<span class="op-chip ${o.key === 'outside' ? 'out' : o.key === 'other' ? 'other' : ''}">${o.key === 'other' ? `أخرى: ${o.text}` : o.text}</span>` : '—'; };
 
 // حالة المستند: ساري / قارب على الانتهاء (30 يوماً أو أقل) / منتهي / غير محدد
@@ -343,10 +351,16 @@ const COLS = [
   ['site_name', 'الموقع الحالي'], ['driver_name', 'السائق الحالي'], ['authorization_status', 'حالة التفويض'], ['op_state_text_sort', 'الحالة التشغيلية'],
   ['op_status', 'حالة السيارة'], ['odometer', 'قراءة العداد'], ['oil_next_odometer', 'موعد تغيير الزيت القادم'], ['reg_expiry', 'انتهاء الاستمارة'], ['insp_expiry', 'انتهاء الفحص الدوري'], ['insurance_expiry', 'انتهاء التأمين'], ['nearest_doc_expiry', 'أقرب وثيقة انتهاءً'],
 ];
-const st = { q: '', op: '', loc: '', owner: '', site: '', ins: '', insFrom: '', insTo: '', sort: 'code', dir: 1 };
+const st = { place: '', placeCompany: '', q: '', op: '', loc: '', owner: '', site: '', ins: '', insFrom: '', insTo: '', sort: 'code', dir: 1 };
 
-export async function renderVehicles(el) {
+export async function renderVehicles(el, params = new URLSearchParams()) {
   await data.lookups();
+  // فتح القائمة من لوحة التحكم (الضغط على لون أو خانة): تُعرض سيارات تلك الخانة فقط
+  if (params.has('place')) {
+    Object.assign(st, { q: '', op: '', loc: '', owner: '', ins: '', insFrom: '', insTo: '' });
+    st.place = PLACES.some(([k]) => k === params.get('place')) ? params.get('place') : '';
+    st.site = params.get('site') || ''; st.placeCompany = params.get('company') || '';
+  } else if (st.place) { st.place = ''; st.placeCompany = ''; st.site = ''; }
   const extraCols = customFields().filter((c) => c.in_list);
   const [rows, vdocs, vauth] = await Promise.all([
     api.get('v_vehicles_overview', { select: '*', order: 'code' }),
@@ -382,6 +396,7 @@ export async function renderVehicles(el) {
       <label><span>انتهاء التأمين من</span><input name="insFrom" type="text" inputmode="numeric" dir="ltr" placeholder="YYYY/MM/DD" value="${st.insFrom}" autocomplete="off"></label>
       <label><span>إلى</span><input name="insTo" type="text" inputmode="numeric" dir="ltr" placeholder="YYYY/MM/DD" value="${st.insTo}" autocomplete="off"></label>
     </form>
+    ${raw(st.place ? html`<div class="place-chip" data-place-chip><i class="dot pl-${st.place}"></i><span>من لوحة التحكم: <b>${PLACES.find(([k]) => k === st.place)[1]}</b>${st.placeCompany ? ` · ${data.companyName(st.placeCompany)}` : ''}</span><button type="button" class="btn btn-sm" data-act="clear-place">عرض كل السيارات</button></div>` : '')}
     <div id="vt"></div>`;
 
   const pager = { limit: PAGE_ROWS };
@@ -391,6 +406,7 @@ export async function renderVehicles(el) {
     const day = (x) => { try { return x ? parseDate(x) : ''; } catch (_) { return ''; } };
     const insFrom = day(st.insFrom), insTo = day(st.insTo);
     let list = rows.filter((r) =>
+      (!st.place || placeOf(r) === st.place) && (!st.placeCompany || r.site_company_id === st.placeCompany) &&
       (!st.op || r.op_status === st.op) && (!st.loc || r.op.key === st.loc) &&
       (!st.owner || r.owner_company_id === st.owner) && (!st.site || r.site_id === st.site) && (!st.ins || r.ins.key === st.ins) &&
       (!insFrom || (r.insurance_expiry && r.insurance_expiry >= insFrom)) && (!insTo || (r.insurance_expiry && r.insurance_expiry <= insTo)) &&
@@ -432,6 +448,7 @@ export async function renderVehicles(el) {
   el.onclick = async (e) => {
     const s = e.target.closest('[data-sort]');
     if (s) { const k = s.dataset.sort; st.dir = st.sort === k ? -st.dir : 1; st.sort = k; draw(); return; }
+    if (e.target.closest('[data-act=clear-place]')) { st.place = ''; st.placeCompany = ''; st.site = ''; location.hash = '#/vehicles'; return; }
     if (e.target.closest('[data-act=new]')) {
       const row = await addVehicle();
       if (row) { saved(`تمت إضافة السيارة ${row.code}`); location.hash = `#/vehicles/${row.id}`; }

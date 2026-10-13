@@ -202,7 +202,7 @@ async function route() {
     if (page === 'dashboard') await renderDashboard(el);
     else if (page === 'search') await renderSearch(el, params.get('q') || '');
     else if (page === 'sites') await renderSites(el);
-    else if (page === 'vehicles') await (id ? renderVehicle(el, id, params) : renderVehicles(el));
+    else if (page === 'vehicles') await (id ? renderVehicle(el, id, params) : renderVehicles(el, params));
     else if (page === 'employees') await (id ? renderEmployee(el, id, params) : renderEmployees(el));
     else if (page === 'documents') await renderDocuments(el);
     else if (page === 'oil') await renderOil(el);

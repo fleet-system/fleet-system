@@ -53,6 +53,22 @@ with sync_playwright() as p:
     g.click('.place-btn[data-pick=outside]'); g.wait_for_timeout(250)
     ok('خارج المواقع' in g.inner_text('[data-pick-info]') and g.locator('.fleet-bar .seg.on[data-pick=outside]').count() == 1, 'clicking a box highlights its colour in the bar')
     g.screenshot(path=f'{OUT}/1-dashboard.png', full_page=True)
+    # linked to the vehicle cards: the picked colour opens the list of exactly those vehicles
+    g.click('.place-btn[data-pick=outside]'); g.wait_for_timeout(200)  # clear
+    g.click('.place-btn[data-pick=accident]'); g.wait_for_selector('[data-place-link]')
+    g.click('[data-place-link]'); g.wait_for_selector('[data-place-chip]'); g.wait_for_selector('#vt'); g.wait_for_timeout(300)
+    rows = g.locator('#vt tbody tr').count(); txt = g.inner_text('#vt')
+    ok(rows == 1 and 'ط ع ق 1357' in txt, f'link opens only the accident-damaged vehicles [{rows}]')
+    ok('متضررة بحادث' in g.inner_text('[data-place-chip]'), 'the list says it came from the dashboard')
+    g.screenshot(path=f'{OUT}/1b-linked-list.png')
+    g.click('#vt tbody tr a.code'); g.wait_for_selector('.vhead')
+    ok('ط ع ق 1357' in g.inner_text('.vhead'), 'and from there to the vehicle card')
+    g.go_back(); g.wait_for_selector('[data-place-chip]'); g.click('[data-act=clear-place]'); g.wait_for_timeout(600)
+    ok(g.locator('[data-place-chip]').count() == 0 and g.locator('#vt tbody tr').count() == 5, '«عرض كل السيارات» shows all vehicles again')
+    g.goto(f'{BASE}#/vehicles?place=stopped'); g.wait_for_selector('#vt'); g.wait_for_timeout(300)
+    ok(g.locator('#vt tbody tr').count() == 1 and 'ك ل م 9090' in g.inner_text('#vt'), 'stopped link lists the stopped vehicle')
+    g.goto(f'{BASE}#/vehicles'); g.wait_for_selector('#vt'); g.wait_for_timeout(300)
+    ok(g.locator('[data-place-chip]').count() == 0 and g.locator('#vt tbody tr').count() == 5, 'plain vehicles page is not left filtered')
 
     # card: working inside -> other «متوقفة»
     edit(g, V[1]); g.select_option('.modal [name=op_state]', value='other'); g.fill('.modal [name=op_state_text]', 'متوقفة'); save(g)

@@ -2,6 +2,7 @@ import * as api from '../api.js';
 import { html, raw, icon, $, PAGE_ROWS, moreRows, bindMore } from '../ui.js';
 import { num, money, date, label, todayParts, statusText, toWestern } from '../fmt.js';
 import { backupReminder } from './settings.js';
+import { PLACES, placeOf } from './vehicles.js';
 
 let lookups = null;
 async function getLookups() {
@@ -85,20 +86,12 @@ async function loadBody(body, { companies, sites }) {
     api.get('v_vehicles_overview', { select: 'op_status,location_status', ...vfilt }).catch(() => null),
   ]);
   // توزيع السيارات: داخل/خارج المواقع للسيارات التي تعمل فقط، والمتوقفة والمتضررة والتي في الورشة كلٌّ في خانته (المجموع = إجمالي السيارات)
-  const cnt = (fn) => (vrows || []).filter(fn).length;
-  const place = vrows ? {
-    inside: cnt((v) => v.op_status === 'working' && v.location_status === 'inside_site'),
-    outside: cnt((v) => v.op_status === 'working' && v.location_status === 'outside_site'),
-    stopped: cnt((v) => v.op_status === 'stopped'),
-    accident: cnt((v) => v.op_status === 'accident_damaged'),
-    workshop: cnt((v) => v.op_status === 'under_maintenance' || (v.op_status === 'working' && v.location_status === 'in_workshop')),
-  } : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
+  const place = vrows ? Object.fromEntries(PLACES.map(([k]) => [k, vrows.filter((v) => placeOf(v) === k).length])) : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
   const siteName = (id) => sites.find((x) => x.id === id)?.name || '—';
   const compName = (id) => companies.find((x) => x.id === id)?.name || '—';
   follow.sort((a, b) => a.severity - b.severity || (a.days_left ?? a.km_left ?? 0) - (b.days_left ?? b.km_left ?? 0));
 
   const total = s.vehicles_total || 0;
-  const PLACES = [['inside', 'داخل المواقع'], ['outside', 'خارج المواقع'], ['stopped', 'متوقفة'], ['accident', 'متضررة بحادث'], ['workshop', 'في الورشة']];
   const placeTotal = PLACES.reduce((t, [k]) => t + (place[k] || 0), 0);
   const pct = (n) => (placeTotal ? `${Math.round((n / placeTotal) * 100)}%` : '0%');
   const period = `${state.year}/${String(state.month).padStart(2, '0')}`;
@@ -161,7 +154,8 @@ async function loadBody(body, { companies, sites }) {
     fleet.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', !again && x.dataset.pick === k));
     const name = PLACES.find(([x]) => x === k)[1];
     fleet.querySelector('[data-pick-info]').innerHTML = again ? 'اضغط على أي لون أو خانة لعرض تفاصيلها.'
-      : html`<i class="dot pl-${k}"></i> <b>${name}</b>: <span class="num">${num(place[k])}</span> من <span class="num">${num(placeTotal)}</span> سيارة (<span class="num">${pct(place[k])}</span>)`;
+      : html`<i class="dot pl-${k}"></i> <b>${name}</b>: <span class="num">${num(place[k])}</span> من <span class="num">${num(placeTotal)}</span> سيارة (<span class="num">${pct(place[k])}</span>)
+        ${raw(place[k] ? html`<a class="link" data-place-link href="#/vehicles?${new URLSearchParams({ place: k, ...(state.site ? { site: state.site } : {}), ...(state.company ? { company: state.company } : {}) })}">عرض بطاقات هذه السيارات ←</a>` : '')}`;
   });
   body.removeAttribute('aria-busy');
   const pager = { limit: PAGE_ROWS }, tb = $('.followups tbody', body), more = $('.followups .fmore', body);
