@@ -52,7 +52,7 @@ with sync_playwright() as p:
     subs = g.locator('.modal .form-subsec').all_inner_texts()
     ok(subs == ['أ. رخصة السير والاستمارة', 'ب. الفحص الدوري', 'ج. التأمين'], '1. documents split into three sub-parts')
     ok(g.inner_text('.modal [data-save]') == 'حفظ السيارة' and g.inner_text('.modal [data-close].btn') == 'إلغاء', '1. buttons «حفظ السيارة» and «إلغاء»')
-    ok(g.evaluate("[...document.querySelector('.modal [name=op_state]').options].map(o => o.textContent)") == ['تعمل داخل الموقع', 'تعمل خارج الموقع', 'أخرى'], '4. operating state has exactly the three options')
+    ok(g.evaluate("[...document.querySelector('.modal [name=op_state]').options].map(o => o.textContent)") == ['تعمل داخل الموقع', 'تعمل خارج الموقع', 'متوقفة', 'تحت الصيانة', 'متضررة بحادث', 'في الورشة', 'أخرى'], '4. operating state options (1.14: fixed states linked to the dashboard + «أخرى»)')
     ok(g.locator('.modal [name=op_state_text]').is_hidden(), '6. free-text state hidden unless «أخرى»')
     # 2. brand-new make and model (not in suggestions)
     ok('ماركة البطاقة' not in opts(g, 'make'), '2. new make not in suggestions before saving')

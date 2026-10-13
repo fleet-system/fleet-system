@@ -69,6 +69,9 @@ export const FIXED_STATES = { stopped: 'متوقفة', maintenance: 'تحت ال
 const FIXED_STATUS = { stopped: 'stopped', maintenance: 'under_maintenance', accident: 'accident_damaged', workshop: 'working' };
 export const cardStateOptions = () => { const o = OP_STATE; return [['inside', o.inside], ['outside', o.outside], ...Object.entries(FIXED_STATES), ['other', o.other]]; };
 export function cardStateOf(v) {
+  // «أخرى» بوصف خاص يبقى كما كتبه المستخدم
+  const t = (v.op_state_text || '').trim();
+  if (v.op_state === 'other' && t && !Object.values(FIXED_STATES).includes(t)) return { key: 'other', text: t };
   if (v.op_status === 'stopped') return { key: 'stopped', text: FIXED_STATES.stopped };
   if (v.op_status === 'accident_damaged') return { key: 'accident', text: FIXED_STATES.accident };
   if (v.op_status === 'under_maintenance') return { key: 'maintenance', text: FIXED_STATES.maintenance };
