@@ -86,7 +86,7 @@ async function loadBody(body, { companies, sites }) {
     api.get('v_vehicles_overview', { select: 'op_status,location_status', ...vfilt }).catch(() => null),
   ]);
   // توزيع السيارات: داخل/خارج المواقع للسيارات التي تعمل فقط، والمتوقفة والمتضررة والتي في الورشة كلٌّ في خانته (المجموع = إجمالي السيارات)
-  const place = vrows ? Object.fromEntries(PLACES.map(([k]) => [k, vrows.filter((v) => placeOf(v) === k).length])) : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
+  const place = vrows ? Object.fromEntries(PLACES.map(([k]) => [k, vrows.filter((v) => placeOf(v) === k).length])) : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, maintenance: s.vehicles_maintenance, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
   const siteName = (id) => sites.find((x) => x.id === id)?.name || '—';
   const compName = (id) => companies.find((x) => x.id === id)?.name || '—';
   follow.sort((a, b) => a.severity - b.severity || (a.days_left ?? a.km_left ?? 0) - (b.days_left ?? b.km_left ?? 0));

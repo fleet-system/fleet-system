@@ -51,7 +51,7 @@ with sync_playwright() as p:
         if tag == 'desktop':
             imgs_ok(pg, '.sidebar .brand-logo img', tag)
             check('نظام إدارة الأسطول' in pg.inner_text('.sidebar .brand'), '[desktop] sidebar title kept')
-            check('1.13' in pg.inner_text('.sidebar .brand'), '[desktop] version 1.13 shown')
+            check('1.14' in pg.inner_text('.sidebar .brand'), '[desktop] version 1.14 shown')
         check('نظام إدارة الأسطول والمواقع الزراعية' in pg.inner_text('.tb-name'), f'[{tag}] top bar title kept')
         check(pg.inner_text('.tb-company').strip() == 'شركة روى الرمال الزراعية' and pg.is_visible('.tb-company'), f'[{tag}] company name beside the logo in the top bar')
         txt = pg.inner_text('#page'); check('لوحة التحكم' in txt and 'المهام التي تحتاج إلى متابعة' in txt, f'[{tag}] dashboard data still shows')

@@ -55,14 +55,30 @@ export function opStatusFor(state, text) {
   return 'working';
 }
 // خانة السيارة في لوحة التحكم (داخل/خارج المواقع للسيارات التي تعمل، متوقفة، متضررة بحادث، في الورشة)
-export const PLACES = [['inside', 'داخل المواقع'], ['outside', 'خارج المواقع'], ['stopped', 'متوقفة'], ['accident', 'متضررة بحادث'], ['workshop', 'في الورشة']];
+export const PLACES = [['inside', 'داخل المواقع'], ['outside', 'خارج المواقع'], ['stopped', 'متوقفة'], ['maintenance', 'تحت الصيانة'], ['accident', 'متضررة بحادث'], ['workshop', 'في الورشة']];
 export function placeOf(v) {
   if (v.op_status === 'stopped') return 'stopped';
   if (v.op_status === 'accident_damaged') return 'accident';
-  if (v.op_status === 'under_maintenance' || v.location_status === 'in_workshop') return 'workshop';
+  if (v.op_status === 'under_maintenance') return 'maintenance';
+  if (v.location_status === 'in_workshop') return 'workshop';
   return v.location_status === 'outside_site' ? 'outside' : 'inside';
 }
-export const opChip = (v) => { const o = opStateOf(v); return o.key ? html`<span class="op-chip ${o.key === 'outside' ? 'out' : o.key === 'other' ? 'other' : ''}">${o.key === 'other' ? `أخرى: ${o.text}` : o.text}</span>` : '—'; };
+// خيارات «الحالة التشغيلية» في البطاقة، مربوطة مباشرة بخانات لوحة التحكم
+// المفتاح ← { حقول السيارة }: op_state/op_state_text للبطاقة، op_status وlocation_status للوحة التحكم
+export const FIXED_STATES = { stopped: 'متوقفة', maintenance: 'تحت الصيانة', accident: 'متضررة بحادث', workshop: 'في الورشة' };
+const FIXED_STATUS = { stopped: 'stopped', maintenance: 'under_maintenance', accident: 'accident_damaged', workshop: 'working' };
+export const cardStateOptions = () => { const o = OP_STATE; return [['inside', o.inside], ['outside', o.outside], ...Object.entries(FIXED_STATES), ['other', o.other]]; };
+export function cardStateOf(v) {
+  if (v.op_status === 'stopped') return { key: 'stopped', text: FIXED_STATES.stopped };
+  if (v.op_status === 'accident_damaged') return { key: 'accident', text: FIXED_STATES.accident };
+  if (v.op_status === 'under_maintenance') return { key: 'maintenance', text: FIXED_STATES.maintenance };
+  if (v.location_status === 'in_workshop') return { key: 'workshop', text: FIXED_STATES.workshop };
+  const o = opStateOf(v);
+  const fixed = o.key === 'other' && Object.entries(FIXED_STATES).find(([, t]) => t === (v.op_state_text || '').trim());
+  if (fixed) return { key: fixed[0], text: fixed[1] };
+  return { key: o.key, text: o.text };
+}
+export const opChip = (v) => { const o = cardStateOf(v); return o.key ? html`<span class="op-chip ${o.key === 'inside' ? '' : o.key === 'outside' ? 'out' : FIXED_STATES[o.key] ? `fx fx-${o.key}` : 'other'}">${o.key === 'other' ? `أخرى: ${o.text}` : o.text}</span>` : '—'; };
 
 // حالة المستند: ساري / قارب على الانتهاء (30 يوماً أو أقل) / منتهي / غير محدد
 export function docState(iso) {
@@ -140,8 +156,8 @@ export function vehicleFields({ isNew, sug, costsFromRecords = false }) {
 
     { type: 'section', label: 'ثانياً: التشغيل والمشاريع' },
     { name: 'site_name', label: 'المشروع الحالي', type: 'combo', options: siteNames(), help: 'اختر مشروعاً محفوظاً أو اكتب اسم مشروع جديد' },
-    { name: 'op_state', label: 'الحالة التشغيلية', type: 'select', required: true, placeholder: false, options: Object.entries(OP_STATE) },
-    { name: 'op_state_text', label: 'اكتب الحالة التشغيلية', hidden: true, help: 'مثل: متوقفة مؤقتاً، في الورشة، بانتظار قطع غيار' },
+    { name: 'op_state', label: 'الحالة التشغيلية', type: 'select', required: true, placeholder: false, options: cardStateOptions(), help: 'تظهر مباشرة في لوحة التحكم' },
+    { name: 'op_state_text', label: 'اكتب الحالة التشغيلية', hidden: true, help: 'مثل: بانتظار قطع غيار، محجوزة' },
     { name: 'notes', label: 'ملاحظة', type: 'textarea', rows: 4, full: true },
 
     { type: 'section', label: 'ثالثاً: المسؤولية والمالكون' },
@@ -235,7 +251,8 @@ export function vehicleValues(v, { docs = {}, priv = {} } = {}) {
   return {
     ...v, plate_letters: p.letters, plate_digits: p.digits,
     owner_company: v.owner_company_id ? data.companyName(v.owner_company_id) : '', site_name: v.site_id ? data.siteName(v.site_id) : '',
-    op_state: o.key || 'inside', op_state_text: v.op_state === 'other' ? v.op_state_text : o.legacy && o.key === 'other' ? o.text : (v.op_state_text || ''),
+    op_state: cardStateOf(v).key || 'inside',
+    op_state_text: cardStateOf(v).key === 'other' ? (v.op_state === 'other' ? v.op_state_text : o.legacy && o.key === 'other' ? o.text : (v.op_state_text || '')) : '',
     current_user_mobile: localMobile(v.current_user_mobile),
     registration_expiry: docs.registration?.expiry_date || '', inspection_expiry: docs.periodic_inspection?.expiry_date || '',
     current_user_id_no: priv.current_user_id_no || '', owner_id_no: priv.owner_id_no || '', change_note: '',
@@ -253,7 +270,8 @@ export async function vehicleRecord(v, { costsFromRecords = false, existingCusto
     plate_no: [letters, digits].filter(Boolean).join(' '),
     make: v.make, model: v.model, manufacture_year: v.manufacture_year, vin: v.vin,
     registration_type: v.registration_type, wheels_count: v.wheels_count,
-    op_state: v.op_state, op_state_text: v.op_state === 'other' ? v.op_state_text.trim() : null, notes: v.notes,
+    op_state: FIXED_STATES[v.op_state] ? 'other' : v.op_state,
+    op_state_text: FIXED_STATES[v.op_state] ? FIXED_STATES[v.op_state] : v.op_state === 'other' ? v.op_state_text.trim() : null, notes: v.notes,
     current_user_name: v.current_user_name, current_user_mobile: v.current_user_mobile,
     registration_serial: v.registration_serial, insurance_expiry: v.insurance_expiry,
     cost_oil: v.cost_oil, cost_maint: v.cost_maint,
@@ -265,10 +283,10 @@ export async function vehicleRecord(v, { costsFromRecords = false, existingCusto
   for (const [k, x] of Object.entries(v)) if (k.startsWith('cf__')) cf[k.slice(4)] = x ?? null;
   rec.custom_fields = cf;
   // الحقل القديم «داخل/خارج الموقع» يبقى متوافقاً (تعتمد عليه لوحة التحكم)
-  rec.op_status = opStatusFor(v.op_state, v.op_state_text);
+  rec.op_status = FIXED_STATES[v.op_state] ? FIXED_STATUS[v.op_state] : opStatusFor(v.op_state, v.op_state_text);
   if (v.op_state === 'inside') rec.location_status = 'inside_site';
   else if (v.op_state === 'outside') rec.location_status = 'outside_site';
-  else if (/ورش/.test(v.op_state_text || '')) rec.location_status = 'in_workshop';
+  else if (v.op_state === 'workshop' || (v.op_state === 'other' && /ورش/.test(v.op_state_text || ''))) rec.location_status = 'in_workshop';
   rec.owner_company_id = await resolveOwner(v.owner_company);
   if (!rec.owner_company_id) throw userError('اكتب اسم المالك.');
   rec.site_id = await resolveSite(v.site_name, rec.owner_company_id);
@@ -318,7 +336,7 @@ export async function vehicleCardForm(v = null, { docs = {}, priv = {}, oil = []
         const changed = Object.fromEntries(Object.entries(rec).filter(([k, x]) => !same(x, v[k])));
         // حالة السيارة تتبع البطاقة فقط عند تغيير الحالة التشغيلية فيها (لا تُلغى حالة سجّلتها صيانة أو حادث)
         const shown = vehicleValues(v, { docs, priv });
-        if (val.op_state === shown.op_state && (val.op_state_text || '') === (shown.op_state_text || '')) delete changed.op_status;
+        if (val.op_state === shown.op_state && (val.op_state_text || '') === (shown.op_state_text || '')) { delete changed.op_status; delete changed.location_status; delete changed.op_state; delete changed.op_state_text; }
         // سبب التعديل يُحفظ مع التعديل نفسه في سجل التعديلات
         if (Object.keys(changed).length) changed.change_note = (val.change_note || '').trim() || null;
         row = Object.keys(changed).length ? (await api.update('vehicles', { id: `eq.${v.id}` }, changed))[0] : v;
@@ -374,7 +392,7 @@ export async function renderVehicles(el, params = new URLSearchParams()) {
     const g = (t) => vdocs.find((d) => d.owner_id === r.id && d.doc_type === t);
     r.reg = g('registration'); r.insp = g('periodic_inspection');
     r.reg_expiry = r.reg?.expiry_date || null; r.insp_expiry = r.insp?.expiry_date || null;
-    r.op = opStateOf(r); r.op_state_text_sort = r.op.text; r.ins = docState(r.insurance_expiry);
+    r.op = cardStateOf(r); r.op_state_text_sort = r.op.text; r.ins = docState(r.insurance_expiry);
     for (const c of extraCols) r[`cf__${c.key}`] = (r.custom_fields || {})[c.key] ?? null;
   }
   const docCell = (d) => (d?.expiry_date
@@ -389,7 +407,7 @@ export async function renderVehicles(el, params = new URLSearchParams()) {
     <form class="filters wide-filters" onsubmit="return false">
       <label class="grow"><span>بحث</span><input name="q" type="search" value="${st.q}" placeholder="رقم اللوحة، الرقم الداخلي، الموظف، النوع، الشركة، الموقع"></label>
       <label><span>حالة السيارة</span><select name="op">${raw(opt('', 'الكل', st.op))}${raw(Object.entries(LABELS.op_status).map(([k, t]) => opt(k, t, st.op)).join(''))}</select></label>
-      <label><span>الحالة التشغيلية</span><select name="loc">${raw(opt('', 'الكل', st.loc))}${raw(Object.entries(OP_STATE).map(([k, t]) => opt(k, t, st.loc)).join(''))}</select></label>
+      <label><span>الحالة التشغيلية</span><select name="loc">${raw(opt('', 'الكل', st.loc))}${raw(cardStateOptions().map(([k, t]) => opt(k, t, st.loc)).join(''))}</select></label>
       <label><span>الشركة المالكة</span><select name="owner">${raw(opt('', 'الكل', st.owner))}${raw(data.companyOptions(false).map(([k, t]) => opt(k, t, st.owner)).join(''))}</select></label>
       <label><span>الموقع</span><select name="site">${raw(opt('', 'الكل', st.site))}${raw(data.siteOptions(false).map(([k, t]) => opt(k, t, st.site)).join(''))}</select></label>
       <label><span>حالة التأمين</span><select name="ins">${raw(opt('', 'الكل', st.ins))}${raw([['valid', 'ساري'], ['expiring', 'قريب الانتهاء (30 يوماً أو أقل)'], ['expired', 'منتهي'], ['none', 'غير محدد']].map(([k, t]) => opt(k, t, st.ins)).join(''))}</select></label>

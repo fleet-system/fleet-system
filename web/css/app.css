@@ -802,7 +802,7 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 
 /* 1.13: إجمالي السيارات التفاعلي بالألوان */
 .pl-inside { background: var(--ok); } .pl-outside { background: #2a78d6; } .pl-stopped { background: var(--idle); }
-.pl-accident { background: var(--bad); } .pl-workshop { background: var(--warn); }
+.pl-accident { background: var(--bad); } .pl-workshop { background: var(--warn); } .pl-maintenance { background: #7b5cc4; }
 .fleet-bar { height: 16px; margin-bottom: 6px; }
 .fleet-bar .seg { border: 0; padding: 0; cursor: pointer; transition: opacity .15s, transform .15s; }
 .fleet-bar .seg:hover, .fleet-bar .seg:focus-visible { transform: scaleY(1.25); outline: none; }
@@ -816,3 +816,8 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .place-chip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 12px; border-radius: 12px; background: var(--line); }
 .place-chip .btn { margin-inline-start: auto; }
 .pick-info .link { margin-inline-start: 6px; font-weight: 600; }
+
+/* 1.14: حالات البطاقة الثابتة (بنفس ألوان لوحة التحكم) */
+.op-chip.fx { color: #fff; }
+.op-chip.fx-stopped { background: var(--idle); } .op-chip.fx-maintenance { background: #7b5cc4; }
+.op-chip.fx-accident { background: var(--bad); } .op-chip.fx-workshop { background: var(--warn); }

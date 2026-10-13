@@ -19,7 +19,7 @@ def login(g, email='admin@test.local'):
     g.goto(BASE); g.wait_for_selector('form.login-card'); g.fill('input[name=email]', email); g.fill('input[name=password]', 'test1234'); g.click('button[type=submit]'); g.wait_for_selector('.panels')
 def dash(g):
     g.goto(f'{BASE}#/dashboard?r={os.urandom(3).hex()}'); g.wait_for_selector('[data-fleet-place]'); g.wait_for_timeout(300)
-    return {k: int(g.inner_text(f'[data-fleet-place] [data-k={k}] b')) for k in ['inside', 'outside', 'stopped', 'accident', 'workshop']}
+    return {k: int(g.inner_text(f'[data-fleet-place] [data-k={k}] b')) for k in ['inside', 'outside', 'stopped', 'maintenance', 'accident', 'workshop']}
 def total(g): return int(g.inner_text('.panel.fleet .big .num'))
 V = {n: f'b0000000-0000-0000-0000-00000000000{n}' for n in range(1, 6)}
 def edit(g, vid):
@@ -33,16 +33,16 @@ with sync_playwright() as p:
     b = p.chromium.launch()
     c, g = new_ctx(b); login(g)
     d = dash(g); t = total(g)
-    ok(d == {'inside': 1, 'outside': 1, 'stopped': 1, 'accident': 1, 'workshop': 1}, f'seed: one vehicle in each box {d}')
+    ok(d == {'inside': 1, 'outside': 1, 'stopped': 1, 'maintenance': 1, 'accident': 1, 'workshop': 0}, f'seed: one vehicle in each status {d}')
     ok(sum(d.values()) == t, f'the five boxes add up to the total ({sum(d.values())} = {t})')
     labels = g.inner_text('[data-fleet-place]')
-    ok(all(x in labels for x in ['داخل المواقع', 'خارج المواقع', 'متوقفة', 'متضررة بحادث', 'في الورشة']), 'labels shown')
+    ok(all(x in labels for x in ['داخل المواقع', 'خارج المواقع', 'متوقفة', 'تحت الصيانة', 'متضررة بحادث', 'في الورشة']), 'labels shown')
     # interactive colors: bar segments + boxes share colors; picking one highlights it and shows count / percent
     ok(g.locator('.fleet-bar .seg[data-pick]').count() == 5, 'bar has one coloured part per box')
     cols = g.evaluate("[...document.querySelectorAll('[data-fleet-place] .dot')].map(d => getComputedStyle(d).backgroundColor)")
-    ok(len(set(cols)) == 5, f'five different colours {cols}')
+    ok(len(set(cols)) == 6, f'six different colours {cols}')
     seg_col = g.evaluate("getComputedStyle(document.querySelector('.fleet-bar .seg[data-pick=accident]')).backgroundColor")
-    ok(seg_col == cols[3], 'box colour matches its bar colour')
+    ok(seg_col == cols[4], 'box colour matches its bar colour')
     g.click('.fleet-bar .seg[data-pick=accident]'); g.wait_for_timeout(250)
     info = g.inner_text('[data-pick-info]')
     ok('متضررة بحادث' in info and '1' in info and '20%' in info, f'clicking a colour shows its count and percent [{info}]')
@@ -75,13 +75,30 @@ with sync_playwright() as p:
     ok(st(V[1]) == 'stopped', f'card «أخرى: متوقفة» -> dashboard status stopped [{st(V[1])}]')
     d = dash(g); ok(d['stopped'] == 2 and d['inside'] == 0, f'dashboard moves it to «متوقفة» {d}')
     # card: -> «متضررة بحادث»
-    edit(g, V[1]); g.fill('.modal [name=op_state_text]', 'متضررة بحادث'); save(g)
+    edit(g, V[1]); g.select_option('.modal [name=op_state]', value='other'); g.fill('.modal [name=op_state_text]', 'متضررة بحادث'); save(g)
     ok(st(V[1]) == 'accident_damaged', f'card «أخرى: متضررة بحادث» -> accident_damaged [{st(V[1])}]')
     d = dash(g); ok(d['accident'] == 2 and d['stopped'] == 1, f'dashboard moves it to «متضررة بحادث» {d}')
     # card: back to working inside
     edit(g, V[1]); g.select_option('.modal [name=op_state]', value='inside'); save(g)
     ok(st(V[1]) == 'working', f'back to «تعمل داخل الموقع» -> working [{st(V[1])}]')
     d = dash(g); ok(d['inside'] == 1 and d['accident'] == 1, f'dashboard back to inside {d}')
+    # v1.14: the fixed choices in the card are linked to the dashboard boxes
+    edit(g, V[1]); opts = g.evaluate("[...document.querySelector('.modal [name=op_state]').options].map(o => o.textContent)")
+    ok(all(x in opts for x in ['تعمل داخل الموقع', 'تعمل خارج الموقع', 'متوقفة', 'تحت الصيانة', 'متضررة بحادث', 'في الورشة', 'أخرى']), f'card choices {opts}')
+    g.click('.modal [data-close].btn'); g.wait_for_timeout(300)
+    for key, box, status in [('stopped', 'stopped', 'stopped'), ('maintenance', 'maintenance', 'under_maintenance'), ('accident', 'accident', 'accident_damaged'), ('workshop', 'workshop', 'working'), ('outside', 'outside', 'working')]:
+        before = dash(g)
+        edit(g, V[1]); g.select_option('.modal [name=op_state]', value=key); g.wait_for_timeout(150)
+        hidden = g.locator('.modal [name=op_state_text]').locator('xpath=ancestor::*[contains(@class,"field")][1]').is_hidden()
+        save(g)
+        after = dash(g)
+        ok(st(V[1]) == status and after[box] == (before[box] + (0 if before == after else 1) if False else after[box]) and after[box] >= 1, f'card «{key}» -> status {st(V[1])}, dashboard box {box} = {after[box]}')
+        ok(hidden, f'card «{key}»: no free-text box needed')
+        g.goto(f'{BASE}#/vehicles/{V[1]}?tab=basic&r={os.urandom(3).hex()}'); g.wait_for_selector('.vhead')
+        chip = g.inner_text('[data-panel=basic] .op-chip') if g.locator('[data-panel=basic] .op-chip').count() else ''
+        ok('أخرى' not in chip, f'card shows the state without «أخرى:» [{chip}]')
+    ok(sql(f"select location_status from vehicles where id = '{V[1]}'") == 'outside_site', 'outside sets the location too')
+    edit(g, V[1]); g.select_option('.modal [name=op_state]', value='inside'); save(g)
     # editing another field keeps a status recorded elsewhere (accident record)
     before = st(V[4])
     edit(g, V[4]); g.fill('.modal [name=notes]', 'ملاحظة اختبار'); save(g)
