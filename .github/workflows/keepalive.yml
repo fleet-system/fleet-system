@@ -1,0 +1,43 @@
+# زيارة يومية تلقائية لقاعدة البيانات حتى لا يوقف Supabase المشروع المجاني بسبب عدم الاستخدام.
+# لا تقرأ أي بيانات: تستدعي الدالة keepalive() التي ترجع كلمة ok فقط، بالمفتاح العام الموجود أصلاً في الموقع.
+# إذا فشلت (مثلاً المشروع متوقف) يرسل GitHub رسالة إلى بريد صاحب الحساب.
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 3 * * *'   # يومياً 06:17 بتوقيت الرياض
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: write   # لإبقاء هذه المهمة مفعّلة (GitHub يوقف المهام المجدولة بعد 60 يوماً بلا تعديلات)
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: web/js/config.js
+          sparse-checkout-cone-mode: false
+
+      - name: Ping Supabase
+        run: |
+          URL=$(grep -oP "SUPABASE_URL = '\K[^']+" web/js/config.js)
+          KEY=$(grep -oP "SUPABASE_KEY = '\K[^']+" web/js/config.js)
+          for i in 1 2 3; do
+            body=$(curl -s -m 30 -X POST "$URL/rest/v1/rpc/keepalive" \
+              -H "apikey: $KEY" -H "Content-Type: application/json" -d '{}') || true
+            echo "attempt $i: $body"
+            if [ "$body" = '"ok"' ]; then echo "database is awake"; exit 0; fi
+            sleep 20
+          done
+          echo "::error::Supabase did not answer. The project may be paused: open supabase.com/dashboard and press Restore."
+          exit 1
+
+      - name: Keep this schedule enabled
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keepalive.yml/enable" || true
