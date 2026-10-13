@@ -80,11 +80,13 @@ async function loadBody(body, { companies, sites }) {
   const vfilt = {};
   if (state.company) vfilt.site_company_id = `eq.${state.company}`;
   if (state.site) vfilt.site_id = `eq.${state.site}`;
-  const [s, follow, vrows] = await Promise.all([
+  const [s, follow, vrows, vdocRows] = await Promise.all([
     api.rpc('dashboard_stats', { p_company: state.company || null, p_site: state.site || null, p_year: state.year, p_month: state.month }),
     api.get('v_followups', { select: '*', ...filt }),
-    api.get('v_vehicles_overview', { select: 'op_status,location_status', ...vfilt }).catch(() => null),
+    api.get('v_vehicles_overview', { select: 'id,code,plate_no,op_status,location_status', ...vfilt }).catch(() => null),
+    api.get('v_document_status', { select: 'owner_id,doc_type,expiry_date,days_left', owner_type: 'eq.vehicle', doc_type: `in.(${VDOC_TYPES.join(',')})` }).catch(() => null),
   ]);
+  const vdocs = vehicleDocs(vrows, vdocRows);
   // توزيع السيارات: داخل/خارج المواقع للسيارات التي تعمل فقط، والمتوقفة والمتضررة والتي في الورشة كلٌّ في خانته (المجموع = إجمالي السيارات)
   const place = vrows ? Object.fromEntries(PLACES.map(([k]) => [k, vrows.filter((v) => placeOf(v) === k).length])) : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, maintenance: s.vehicles_maintenance, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
   const siteName = (id) => sites.find((x) => x.id === id)?.name || '—';
@@ -110,6 +112,7 @@ async function loadBody(body, { companies, sites }) {
           ${raw(PLACES.map(([k, t]) => html`<li data-k="${k}"><button type="button" class="place-btn" data-pick="${k}"><span><i class="dot pl-${k}"></i>${t}</span><b class="num">${num(place[k])}</b><small class="muted num">${pct(place[k])}</small></button></li>`).join(''))}
         </ul>
       </article>
+${raw(vdocs ? vdocsPanel(vdocs) : '')}
 
       <article class="panel watch" aria-labelledby="p-watch">
         <header><h2 id="p-watch">ما يحتاج انتباهك</h2></header>
@@ -157,6 +160,7 @@ async function loadBody(body, { companies, sites }) {
       : html`<i class="dot pl-${k}"></i> <b>${name}</b>: <span class="num">${num(place[k])}</span> من <span class="num">${num(placeTotal)}</span> سيارة (<span class="num">${pct(place[k])}</span>)
         ${raw(place[k] ? html`<a class="link" data-place-link href="#/vehicles?${new URLSearchParams({ place: k, ...(state.site ? { site: state.site } : {}), ...(state.company ? { company: state.company } : {}) })}">عرض بطاقات هذه السيارات ←</a>` : '')}`;
   });
+  if (vdocs) bindVdocs(body.querySelector('[data-vdocs]'), vdocs);
   body.removeAttribute('aria-busy');
   const pager = { limit: PAGE_ROWS }, tb = $('.followups tbody', body), more = $('.followups .fmore', body);
   if (tb) bindMore(more, pager, () => { tb.innerHTML = followRows(follow.slice(0, pager.limit), siteName, compName); more.innerHTML = String(moreRows(Math.min(pager.limit, follow.length), follow.length)); });
@@ -173,4 +177,63 @@ function followRows(list, siteName, compName) {
               <td data-l="المتبقي" class="remain">${statusText(r)}</td>
               <td class="act"><a class="btn btn-sm" href="#/${{ vehicle: 'vehicles', employee: 'employees', maintenance_request: 'requests' }[r.subject_type]}/${r.subject_id}">فتح السجل</a></td>
             </tr>`).join('');
+}
+
+// ---------------------------------------------------------------------
+// بطاقة «وثائق السيارات»: رخصة السير والفحص الدوري والتأمين من بطاقات السيارات (تتحدث مع أي تعديل للتاريخ)
+// ---------------------------------------------------------------------
+const VDOC_TYPES = ['registration', 'periodic_inspection', 'insurance'];
+const VDOC_NAME = { registration: 'رخصة السير', periodic_inspection: 'الفحص الدوري', insurance: 'التأمين' };
+const SOON_DAYS = 30;
+function vehicleDocs(vrows, docRows) {
+  if (!vrows || !docRows) return null;
+  const byId = new Map(vrows.map((v) => [v.id, { ...v, place: placeOf(v), docs: [] }]));
+  for (const d of docRows) { const v = byId.get(d.owner_id); if (v && d.expiry_date && d.days_left != null) v.docs.push(d); }
+  const items = [...byId.values()].flatMap((v) => v.docs.map((d) => ({ v, d })));
+  const box = Object.fromEntries(PLACES.map(([k]) => [k, {
+    expired: items.filter((x) => x.v.place === k && x.d.days_left < 0),
+    soon: items.filter((x) => x.v.place === k && x.d.days_left >= 0 && x.d.days_left <= SOON_DAYS),
+  }]));
+  // أقرب وثيقة لكل سيارة خلال 30 يوماً (قبل أن تنتهي)، مرتبة: الأقرب أولاً
+  const nearest = [...byId.values()].map((v) => ({ v, d: v.docs.filter((d) => d.days_left >= 0 && d.days_left <= SOON_DAYS).sort((a, b) => a.days_left - b.days_left)[0] }))
+    .filter((x) => x.d).sort((a, b) => a.d.days_left - b.d.days_left || String(a.v.code).localeCompare(String(b.v.code)));
+  return { box, nearest, expiredAll: items.filter((x) => x.d.days_left < 0).length };
+}
+const docRow = ({ v, d }) => html`<li><a href="#/vehicles/${v.id}?tab=docs" class="vdoc-row">
+  <i class="dot pl-${v.place}" title="${PLACES.find(([k]) => k === v.place)[1]}"></i>
+  <span class="vdoc-car"><b class="plate">${v.plate_no}</b> <small class="muted">${v.code}</small></span>
+  <span class="vdoc-type">${VDOC_NAME[d.doc_type]}</span>
+  <span class="num vdoc-date">${date(d.expiry_date)}</span>
+  <span class="tag ${d.days_left < 0 ? 't-expired' : 't-expiring'} num">${d.days_left < 0 ? `منتهية منذ ${num(-d.days_left)} يوم` : d.days_left === 0 ? 'تنتهي اليوم' : `باقي ${num(d.days_left)} يوم`}</span></a></li>`;
+function vdocsList(vd, k) {
+  if (!k) {
+    return html`<h3 class="vdoc-h">أقرب الوثائق انتهاءً — خلال ${num(SOON_DAYS)} يوماً <small class="muted">(سيارة واحدة = أقرب وثيقة لها)</small></h3>
+      ${raw(vd.nearest.length ? html`<ul class="vdoc-list" data-vdoc-soon>${raw(vd.nearest.map(docRow).join(''))}</ul>` : html`<p class="muted small">لا توجد وثيقة تنتهي خلال ${num(SOON_DAYS)} يوماً.</p>`)}`;
+  }
+  const name = PLACES.find(([x]) => x === k)[1]; const b = vd.box[k];
+  const sort = (arr) => [...arr].sort((x, y) => x.d.days_left - y.d.days_left);
+  return html`<h3 class="vdoc-h"><i class="dot pl-${k}"></i> ${name}: الوثائق المنتهية (${num(b.expired.length)})</h3>
+    ${raw(b.expired.length ? html`<ul class="vdoc-list" data-vdoc-expired>${raw(sort(b.expired).map(docRow).join(''))}</ul>` : '<p class="muted small">لا توجد وثائق منتهية.</p>')}
+    <h3 class="vdoc-h">${name}: تنتهي خلال ${num(SOON_DAYS)} يوماً (${num(b.soon.length)})</h3>
+    ${raw(b.soon.length ? html`<ul class="vdoc-list">${raw(sort(b.soon).map(docRow).join(''))}</ul>` : '<p class="muted small">لا توجد.</p>')}`;
+}
+function vdocsPanel(vd) {
+  return html`<article class="panel vdocs" data-vdocs aria-labelledby="p-vdocs">
+    <header><h2 id="p-vdocs">وثائق السيارات</h2><a href="#/documents" class="link">كل الوثائق</a></header>
+    <p class="muted small vdoc-sub">رخصة السير · الفحص الدوري · التأمين — من بطاقات السيارات مباشرة. اضغط على خانة لعرض سياراتها.</p>
+    <ul class="kv three five vdoc-boxes">${raw(PLACES.map(([k, t]) => html`<li data-k="${k}"><button type="button" class="place-btn" data-dpick="${k}">
+      <span><i class="dot pl-${k}"></i>${t}</span>
+      <b class="num ${vd.box[k].expired.length ? 'bad-text' : ''}">${num(vd.box[k].expired.length)}</b><small class="muted">وثائق منتهية</small>
+      ${raw(vd.box[k].soon.length ? html`<small class="tag t-expiring num">${num(vd.box[k].soon.length)} خلال ${num(SOON_DAYS)} يوماً</small>` : '')}</button></li>`).join(''))}</ul>
+    <div data-vdocs-list>${raw(vdocsList(vd, ''))}</div>
+  </article>`;
+}
+function bindVdocs(panel, vd) {
+  panel.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-dpick]'); if (!b) return;
+    const k = b.dataset.dpick; const again = panel.dataset.picked === k;
+    panel.dataset.picked = again ? '' : k; panel.classList.toggle('has-pick', !again);
+    panel.querySelectorAll('[data-dpick]').forEach((x) => x.classList.toggle('on', !again && x.dataset.dpick === k));
+    panel.querySelector('[data-vdocs-list]').innerHTML = vdocsList(vd, again ? '' : k);
+  });
 }
