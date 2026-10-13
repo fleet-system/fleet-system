@@ -5,6 +5,8 @@ import { html, raw, icon, toast } from '../ui.js';
 import { dateTime, num, errorText, toWestern } from '../fmt.js';
 import { openForm, saved, userError } from '../form.js';
 import { downloadBackup, restoreFileFromBackup, TABLES } from '../backup.js';
+import { SUPABASE_URL } from '../config.js';
+import { confirmBox } from '../form.js';
 
 const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 864e5) : null);
 
@@ -47,6 +49,8 @@ export async function renderSettings(el) {
         <a class="btn" href="#/settings/requests?tab=archive">${icon('clock')}<span>سجل الطلبات المحذوفة</span></a></div>
     </section>
 
+    ${raw(me.is_admin ? excelLinkSection(S.excel_feed) : '')}
+
     <section class="panel backup">
       <div class="tab-head"><h2>النسخ الاحتياطي وحماية البيانات</h2></div>
       ${raw(me.is_admin ? html`
@@ -57,6 +61,7 @@ export async function renderSettings(el) {
 
   el.onclick = async (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'xl-new' || b.dataset.act === 'xl-off' || b.dataset.act === 'xl-copy') { await excelLinkAction(b, S.excel_feed, el); return; }
     const prog = el.querySelector('[data-progress]');
     if (b.dataset.act === 'backup') {
       b.disabled = true;
@@ -118,4 +123,64 @@ export async function backupReminder() {
     if (ago !== null && ago <= 7) return '';
     return html`<a class="bad-box backup-nudge" href="#/backup">${icon('alert')}<span>${ago === null ? 'لم تُؤخذ أي نسخة احتياطية بعد.' : `آخر نسخة احتياطية قبل ${ago} يوم.`} اضغط هنا لإنشاء نسخة الآن.</span></a>`.toString();
   } catch (_) { return ''; }
+}
+
+// ---------------- ملف Excel المربوط (للمسؤول فقط)
+// المفتاح يُنشأ في المتصفح ويظهر مرة واحدة؛ تُحفظ بصمته (SHA-256) فقط في app_settings.excel_feed
+const FEED = `${SUPABASE_URL}/functions/v1/excel-feed?key=`;
+const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const sha256Hex = async (t) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, '0')).join('');
+
+function excelLinkSection(cfg) {
+  const on = cfg && cfg.hash && cfg.enabled !== false;
+  return html`<section class="panel excel-link">
+    <div class="tab-head"><h2>ملف Excel المربوط</h2><span class="tag ${on ? 't-valid' : 't-missing'}">${on ? 'مفعّل' : 'غير مفعّل'}</span></div>
+    <p>ملف Excel في OneDrive يجلب آخر بيانات النظام كلما فتحته على الكمبيوتر: السيارات، الوثائق والتنبيهات، المتابعات، تغيير الزيت، الصيانة، طلبات الصيانة، الحوادث، والمصروفات.
+      <b>للقراءة فقط</b>، و<b>بدون</b> أرقام الهوية أو الإقامة أو الجوالات أو أرقام الفواتير.</p>
+    ${raw(on ? html`<p class="muted small">أُنشئ الرابط الحالي بتاريخ <span class="num">${dateTime(cfg.created_at)}</span>${cfg.created_by ? ` بواسطة ${cfg.created_by}` : ''}. لا يمكن عرضه مرة أخرى؛ إن فقدته أنشئ رابطاً جديداً (يتوقف القديم تلقائياً).</p>` : '')}
+    <div class="btn-row wrap"><button class="btn btn-primary" data-act="xl-new">${icon('table')}<span>${on ? 'إنشاء رابط جديد' : 'إنشاء رابط ملف Excel'}</span></button>
+      ${raw(on ? html`<button class="btn" data-act="xl-off">${icon('close')}<span>إيقاف الرابط</span></button>` : '')}</div>
+    <div class="xl-out"></div>
+    <details class="xl-steps"><summary>طريقة الربط في Excel (مرة واحدة من الكمبيوتر)</summary><ol>
+      <li>افتح Excel على الكمبيوتر ← ملف جديد ← احفظه في <b>OneDrive</b> باسم «بيانات الأسطول».</li>
+      <li>من تبويب <b>بيانات (Data)</b> اختر <b>من ويب (From Web)</b>، والصق الرابط ثم <b>موافق</b>. إن سألك عن طريقة الدخول اختر <b>مجهول (Anonymous)</b> ثم <b>اتصال</b>.</li>
+      <li>في نافذة <b>المتصفح (Navigator)</b> ضع علامة على <b>تحديد عناصر متعددة</b>، واختر الأوراق التي تريدها، ثم <b>تحميل (Load)</b>.</li>
+      <li>للتحديث التلقائي: <b>بيانات ← الاستعلامات والاتصالات</b> ← زر الفأرة الأيمن على كل استعلام ← <b>خصائص</b> ← فعّل <b>تحديث البيانات عند فتح الملف</b> و<b>التحديث كل 60 دقيقة</b>.</li>
+      <li>للتحديث يدوياً في أي وقت: <b>بيانات ← تحديث الكل</b>.</li>
+    </ol></details>
+  </section>`;
+}
+
+async function excelLinkAction(b, cfg, el) {
+  const act = b.dataset.act;
+  if (act === 'xl-copy') {
+    const url = el.querySelector('.xl-url')?.value || '';
+    try { await navigator.clipboard.writeText(url); toast('تم نسخ الرابط', 'ok'); } catch (_) { el.querySelector('.xl-url')?.select(); toast('حدّد الرابط وانسخه يدوياً', 'error'); }
+    return;
+  }
+  const on = cfg && cfg.hash && cfg.enabled !== false;
+  if (act === 'xl-off') {
+    if (!await confirmBox('سيتوقف ملف Excel المربوط عن جلب البيانات فوراً. يمكنك إنشاء رابط جديد لاحقاً.', { title: 'إيقاف الرابط', okText: 'إيقاف', danger: true })) return;
+    await saveFeed({ ...cfg, enabled: false, disabled_at: new Date().toISOString() });
+    saved('تم إيقاف الرابط'); renderSettings(el); return;
+  }
+  if (on && !await confirmBox('سيتوقف الرابط الحالي ويُنشأ رابط جديد. أي ملف Excel مربوط بالرابط القديم يحتاج تحديث الرابط فيه.', { title: 'رابط جديد', okText: 'إنشاء رابط جديد' })) return;
+  const key = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const me = api.currentUser();
+  b.disabled = true;
+  try {
+    await saveFeed({ hash: await sha256Hex(key), enabled: true, created_at: new Date().toISOString(), created_by: me?.full_name || '' });
+    await renderSettings(el);
+    const out = el.querySelector('.xl-out');
+    out.innerHTML = html`<div class="warn-box xl-new"><p><b>انسخ الرابط الآن واحفظه في مكان آمن</b> — لن يظهر مرة أخرى. لا ترسله لأحد؛ من يملكه يرى بيانات الملف.</p>
+      <input class="xl-url" dir="ltr" readonly value="${FEED + key}"><div class="btn-row"><button class="btn btn-primary" data-act="xl-copy">${icon('doc')}<span>نسخ الرابط</span></button></div></div>`;
+    el.querySelector('.xl-steps').open = true;
+    out.scrollIntoView({ block: 'center' });
+  } catch (e) { toast(errorText(e), 'error'); b.disabled = false; }
+}
+
+async function saveFeed(value) {
+  const u = await api.update('app_settings', { key: 'eq.excel_feed' }, { value });
+  if (!u.length) await api.insert('app_settings', { key: 'excel_feed', value, description: 'linked Excel file (hash of the access key only)' });
+  data.invalidate();
 }

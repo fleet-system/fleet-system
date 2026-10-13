@@ -27,7 +27,7 @@ import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 
-export const VERSION = '1.10';
+export const VERSION = '1.11';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [

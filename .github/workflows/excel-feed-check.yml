@@ -1,0 +1,46 @@
+# فحص يدوي لملف Excel المربوط: يتأكد أن الرابط يرفض المفتاح الخاطئ، وأن الملف (عند إعطاء رابط صالح) سليم وبدون أرقام حساسة.
+name: excel-feed-check
+on:
+  workflow_dispatch:
+    inputs:
+      key:
+        description: 'temporary test key (optional)'
+        required: false
+        default: ''
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wrong key is refused
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://pemyrokrbqzwvtretawa.supabase.co/functions/v1/excel-feed?key=wrong-key-wrong-key-wrong-key-wrong-key")
+          echo "wrong key -> $code"; test "$code" = "403"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "https://pemyrokrbqzwvtretawa.supabase.co/functions/v1/excel-feed")
+          echo "no key -> $code"; test "$code" = "403"
+      - name: Valid key gives a clean workbook
+        if: ${{ inputs.key != '' }}
+        env:
+          KEY: ${{ inputs.key }}
+        run: |
+          echo "::add-mask::$KEY"
+          curl -s -f -o feed.xlsx "https://pemyrokrbqzwvtretawa.supabase.co/functions/v1/excel-feed?key=$KEY"
+          pip install -q openpyxl
+          python3 - <<'PY'
+          import openpyxl, re, sys
+          wb = openpyxl.load_workbook('feed.xlsx')
+          print('sheets:', len(wb.sheetnames))
+          assert len(wb.sheetnames) == 9, wb.sheetnames
+          bad = []
+          for ws in wb.worksheets:
+              rows = list(ws.iter_rows(values_only=True))
+              print(ws.title.encode('unicode_escape').decode(), 'rows:', len(rows) - 1)
+              for r in rows[1:]:
+                  for v in r:
+                      s = '' if v is None else str(v)
+                      if re.search(r'(\+?966|\b0)5\d{8}\b', s) or re.fullmatch(r'[12]\d{9}', s): bad.append(1)
+          assert not bad, f'{len(bad)} sensitive-looking cells'
+          print('OK: workbook valid, no ID or mobile numbers')
+          PY
