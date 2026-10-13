@@ -791,3 +791,7 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .xl-steps { margin-top: 12px; }
 .xl-steps summary { cursor: pointer; font-weight: 600; color: var(--palm); }
 .xl-steps ol { padding-inline-start: 20px; line-height: 1.9; }
+
+/* 1.12: المواقع الموقوفة (مطوية أسفل صفحة الشركات والمواقع) */
+.stopped-sites > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.stopped-sites[open] > summary { margin-bottom: 8px; }

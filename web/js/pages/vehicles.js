@@ -4,7 +4,7 @@ import * as data from '../data.js';
 import { html, raw, icon, $, PAGE_ROWS, moreRows, bindMore } from '../ui.js';
 import { label, LABELS, km, num, date, money, todayISO, toWestern, parseDate, saMobile, saMobileText } from '../fmt.js';
 import { openForm, saved, userError } from '../form.js';
-import { companyNames, siteNames, employeeNamesPlain, resolveCompany, resolveSite } from '../resolve.js';
+import { companyNames, siteNames, employeeNamesPlain, resolveOwner, resolveSite } from '../resolve.js';
 
 import { fieldLabel, regTypes, extraMakes, opStateLabels, customFields, customFormField, SECTIONS } from '../vehicle-config.js';
 
@@ -251,7 +251,7 @@ export async function vehicleRecord(v, { costsFromRecords = false, existingCusto
   if (v.op_state === 'inside') rec.location_status = 'inside_site';
   else if (v.op_state === 'outside') rec.location_status = 'outside_site';
   else if (/ورش/.test(v.op_state_text || '')) rec.location_status = 'in_workshop';
-  rec.owner_company_id = await resolveCompany(v.owner_company);
+  rec.owner_company_id = await resolveOwner(v.owner_company);
   if (!rec.owner_company_id) throw userError('اكتب اسم المالك.');
   rec.site_id = await resolveSite(v.site_name, rec.owner_company_id);
   const priv = 'current_user_id_no' in v || 'owner_id_no' in v ? { current_user_id_no: v.current_user_id_no ?? null, owner_id_no: v.owner_id_no ?? null } : null;

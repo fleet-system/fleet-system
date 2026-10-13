@@ -6,7 +6,8 @@ const norm = (s) => String(s ?? '').replace(/[‎‏]/g, '').replace(/\s+/g, ' '
 const same = (a, b) => norm(a).toLowerCase() === norm(b).toLowerCase();
 
 export const companyNames = () => data.companyOptions(false).map(([, n]) => n);
-export const siteNames = () => (data.cache()?.sites || []).map((s) => s.name);
+export const mainCompanyNames = () => data.mainCompanyOptions(false).map(([, n]) => n);
+export const siteNames = () => (data.cache()?.sites || []).filter((s) => s.is_active).map((s) => s.name);
 export const employeeLabels = () => (data.cache()?.employees || []).filter((e) => e.status !== 'terminated').map((e) => `${e.full_name} (${e.code})`);
 export const employeeNamesPlain = () => [...new Set((data.cache()?.employees || []).map((e) => e.full_name))];
 
@@ -17,6 +18,16 @@ export async function resolveCompany(text) {
   if (hit) return hit[0];
   const id = await api.rpc('ensure_company', { p_name: t });
   data.cache()?.companies.push({ id, name: t, is_active: true });
+  return id;
+}
+
+// اسم مالك المركبة → معرّفه (المالك الجديد يُسجَّل «مالك مركبة» ولا يظهر مع الشركات الرئيسية)
+export async function resolveOwner(text) {
+  const t = norm(text); if (!t) return null;
+  const hit = data.companyOptions(false).find(([, n]) => same(n, t));
+  if (hit) return hit[0];
+  const id = await api.rpc('ensure_owner', { p_name: t });
+  data.cache()?.companies.push({ id, name: t, is_active: true, is_vehicle_owner: true });
   return id;
 }
 

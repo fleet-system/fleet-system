@@ -5,7 +5,7 @@ import { html, raw, icon, toast, $, PAGE_ROWS, moreRows, bindMore } from '../ui.
 import { label, LABELS, num, date, dateTime, todayISO, km } from '../fmt.js';
 import { openForm, saved, userError } from '../form.js';
 import { mountAttachments } from '../attachments.js';
-import { companyNames, siteNames, resolveCompany, resolveSite } from '../resolve.js';
+import { mainCompanyNames, siteNames, resolveCompany, resolveSite } from '../resolve.js';
 
 const iqamaOk = (s) => !s || /^\d{10}$/.test(s);
 const mobileOk = (s) => !s || /^\+?\d{9,15}$/.test(s);
@@ -14,7 +14,7 @@ function employeeFields(isNew) {
   const sens = api.can('view_sensitive');
   const f = [
     { name: 'full_name', label: 'الاسم الكامل', required: true, full: true },
-    { name: 'company_name', label: 'الشركة', type: 'combo', options: companyNames(), help: 'اختر أو اكتب اسم أي شركة؛ الاسم الجديد يُسجَّل' },
+    { name: 'company_name', label: 'الشركة', type: 'combo', options: mainCompanyNames(), help: 'اختر أو اكتب اسم أي شركة؛ الاسم الجديد يُسجَّل' },
     { name: 'site_name', label: 'الموقع / المشروع', type: 'combo', options: siteNames(), help: 'اختر أو اكتب أي موقع أو مشروع أو مزرعة أو فرع' },
     { name: 'job_title', label: 'المسمى الوظيفي' },
     { name: 'status', label: 'حالة الموظف', type: 'select', required: true, placeholder: false, options: Object.entries(LABELS.employee_status) },

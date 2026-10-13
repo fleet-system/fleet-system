@@ -5,7 +5,7 @@ let cache = null;
 export async function lookups(force = false) {
   if (!cache || force) {
     const [companies, sites, employees, vehicles, settings] = await Promise.all([
-      api.get('companies', { select: 'id,name,is_active', order: 'name' }),
+      api.get('companies', { select: '*', order: 'name' }),
       api.get('sites', { select: 'id,name,company_id,kind,is_active', order: 'name' }),
       api.get('employees', { select: 'id,code,full_name,site_id,company_id,status', deleted_at: 'is.null', order: 'full_name' }),
       api.get('vehicles', { select: 'id,code,plate_no,vehicle_type,make,model,manufacture_year,site_id,owner_company_id,current_driver_id,odometer,oil_interval_km,op_status,location_status', deleted_at: 'is.null', order: 'code' }),
@@ -25,6 +25,8 @@ export const siteCompany = (id) => cache?.sites.find((s) => s.id === id)?.compan
 export const employeeName = (id) => { const e = cache?.employees.find((x) => x.id === id); return e ? e.full_name : '—'; };
 
 export const companyOptions = (active = true) => cache.companies.filter((c) => !active || c.is_active).map((c) => [c.id, c.name]);
+// الشركات الرئيسية فقط (بدون مالكي المركبات المسجلين من بطاقة السيارة)
+export const mainCompanyOptions = (active = true) => cache.companies.filter((c) => !c.is_vehicle_owner && (!active || c.is_active)).map((c) => [c.id, c.name]);
 export const siteOptions = (active = true) => cache.sites.filter((s) => !active || s.is_active).map((s) => [s.id, `${s.name} — ${companyName(s.company_id)}`]);
 export const employeeOptions = () => cache.employees.filter((e) => e.status !== 'terminated').map((e) => [e.id, `${e.full_name} (${e.code})`]);
 
