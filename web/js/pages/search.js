@@ -1,0 +1,66 @@
+import * as api from '../api.js';
+import * as data from '../data.js';
+import { mrTag } from './requests.js';
+import { html, raw } from '../ui.js';
+import { label, km, num, date } from '../fmt.js';
+
+export async function renderSearch(el, q) {
+  const clean = q.replace(/[(),*%\\]/g, ' ').trim();
+  const box = document.querySelector('form.search input');
+  if (box) box.value = q;
+  if (!clean) { el.innerHTML = html`<div class="empty"><p>اكتب كلمة للبحث في الأعلى.</p></div>`; return; }
+  const like = `*${clean}*`;
+  await data.lookups();
+  const siteIds = data.siteOptions(false).filter(([, t]) => t.toLowerCase().includes(clean.toLowerCase())).map(([k]) => k);
+  const [vehicles, employees, requests] = await Promise.all([
+    api.get('v_vehicles_overview', {
+      select: 'id,code,plate_no,vehicle_type,make,owner_company_name,site_name,driver_name,op_status,odometer',
+      or: `(plate_no.ilike.${like},code.ilike.${like},driver_name.ilike.${like},vehicle_type.ilike.${like},make.ilike.${like},owner_company_name.ilike.${like},site_name.ilike.${like})`,
+      order: 'code', limit: 50,
+    }),
+    api.get('employees', {
+      select: 'id,code,full_name,job_title,status', deleted_at: 'is.null',
+      or: `(full_name.ilike.${like},code.ilike.${like})`, order: 'full_name', limit: 50,
+    }),
+    api.get('maintenance_requests', {
+      select: 'id,request_no,request_date,plate_no,equipment_text,project_text,site_id,status,fault', deleted_at: 'is.null',
+      or: `(request_no.ilike.${like},plate_no.ilike.${like},project_text.ilike.${like},equipment_text.ilike.${like}${siteIds.length ? `,site_id.in.(${siteIds.join(',')})` : ''})`,
+      order: 'request_date.desc', limit: 50,
+    }).catch(() => []),
+  ]);
+  el.innerHTML = html`
+    <div class="page-head"><h1>نتائج البحث عن «${q}»</h1></div>
+    <section class="followups">
+      <header class="sec-head"><h2>السيارات</h2><span class="count num">${num(vehicles.length)}</span></header>
+      ${raw(vehicles.length ? html`<div class="table-wrap"><table class="log">
+        <thead><tr><th>الرقم الداخلي</th><th>رقم اللوحة</th><th>النوع</th><th>الشركة المالكة</th><th>الموقع</th><th>السائق</th><th>الحالة</th><th>العداد</th><th></th></tr></thead>
+        <tbody>${raw(vehicles.map((v) => html`<tr>
+          <td data-l="الرقم الداخلي" class="num"><b>${v.code}</b></td><td data-l="رقم اللوحة" class="plate">${v.plate_no}</td>
+          <td data-l="النوع">${v.vehicle_type || '—'} ${v.make || ''}</td><td data-l="الشركة المالكة">${v.owner_company_name}</td>
+          <td data-l="الموقع">${v.site_name || '—'}</td><td data-l="السائق">${v.driver_name || '—'}</td>
+          <td data-l="الحالة"><span class="pill st-${v.op_status}">${label('op_status', v.op_status)}</span></td>
+          <td data-l="العداد" class="num">${km(v.odometer)}</td>
+          <td class="act"><a class="btn btn-sm" href="#/vehicles/${v.id}">عرض الملف</a></td></tr>`).join(''))}</tbody></table></div>`
+        : html`<p class="muted pad">لا توجد سيارات مطابقة.</p>`)}
+    </section>
+    ${raw(requests.length ? html`<section class="followups">
+      <header class="sec-head"><h2>طلبات الصيانة</h2><span class="count num">${num(requests.length)}</span></header>
+      <div class="table-wrap"><table class="log">
+        <thead><tr><th>رقم الطلب</th><th>التاريخ</th><th>رقم اللوحة / المعدة</th><th>المشروع</th><th>الحالة</th><th></th></tr></thead>
+        <tbody>${raw(requests.map((r) => html`<tr>
+          <td data-l="رقم الطلب" class="num"><b>${r.request_no}</b></td><td data-l="التاريخ" class="num">${date(r.request_date)}</td>
+          <td data-l="رقم اللوحة / المعدة" class="plate">${r.plate_no || r.equipment_text || '—'}</td>
+          <td data-l="المشروع">${[r.site_id ? data.siteName(r.site_id) : '', r.project_text].filter(Boolean).join(' — ') || '—'}</td>
+          <td data-l="الحالة">${mrTag(r.status)}</td>
+          <td class="act"><a class="btn btn-sm" href="#/requests/${r.id}">عرض الطلب</a></td></tr>`).join(''))}</tbody></table></div>
+    </section>` : '')}
+    <section class="followups">
+      <header class="sec-head"><h2>الموظفون</h2><span class="count num">${num(employees.length)}</span></header>
+      ${raw(employees.length ? html`<div class="table-wrap"><table class="log">
+        <thead><tr><th>الرقم الداخلي</th><th>الاسم</th><th>المسمى الوظيفي</th><th></th></tr></thead>
+        <tbody>${raw(employees.map((e) => html`<tr>
+          <td data-l="الرقم الداخلي" class="num"><b>${e.code}</b></td><td data-l="الاسم">${e.full_name}</td><td data-l="المسمى">${e.job_title || '—'}</td>
+          <td class="act"><a class="btn btn-sm" href="#/employees/${e.id}">عرض الملف</a></td></tr>`).join(''))}</tbody></table></div>`
+        : html`<p class="muted pad">لا يوجد موظفون مطابقون.</p>`)}
+    </section>`;
+}

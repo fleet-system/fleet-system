@@ -1,0 +1,11 @@
+{
+  "name": "نظام إدارة الأسطول والمواقع الزراعية",
+  "short_name": "الأسطول",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./#/dashboard",
+  "display": "standalone",
+  "background_color": "#EEF1EE",
+  "theme_color": "#1E4636",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
