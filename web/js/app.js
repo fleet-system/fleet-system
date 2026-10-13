@@ -26,7 +26,7 @@ import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 
-export const VERSION = '1.7';
+export const VERSION = '1.8';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -78,7 +78,8 @@ function shell(user) {
       <div class="main">
         <header class="topbar">
           <div class="tb-title">
-            <img class="tb-logo" src="logo-mark.png" alt="الشعار" width="192" height="192">
+            <img class="tb-logo" src="logo-mark.png" alt="شعار شركة روى الرمال الزراعية" width="192" height="192">
+            <span class="tb-company">شركة روى الرمال الزراعية</span>
             <span class="tb-name">نظام إدارة الأسطول والمواقع الزراعية</span>
             <span class="tb-meta"><span class="tb-user">${user.full_name}</span><span class="tb-date num">${today}</span></span>
           </div>
