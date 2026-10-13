@@ -28,7 +28,7 @@ export const FIELDS = {
   value: 'القيمة', category: 'نوع المستند', file_name: 'اسم الملف', description_item: 'البند',
   request_no: 'رقم الطلب', request_date: 'تاريخ الطلب', project_text: 'المشروع (نص)', equipment_text: 'المعدة', driver_name: 'المستخدم', meter_reading: 'كيلو متر / الساعة',
   meter_unit: 'وحدة العداد', fault: 'العطل', fault_cause: 'سبب العطل', technician_opinion: 'رأي الفني', site_notes: 'ملاحظات الموقع', last_change_date: 'تاريخ آخر تغيير',
-  custom_fields: 'حقول إضافية', delete_reason: 'سبب الحذف', deleted_by: 'حذفها', restored_at: 'تاريخ الاسترداد', restored_by: 'استردها', change_note: 'سبب التعديل',
+  custom_fields: 'حقول إضافية', delete_reason: 'سبب الحذف', deleted_by: 'حذفها', restored_at: 'تاريخ الاسترداد', restored_by: 'استردها', change_note: 'سبب التعديل', restore_note: 'ملاحظة الاسترجاع',
   supervisor_name: 'مشرف الصيانة', approver_name: 'المعتمد', approval_notes: 'ملاحظات الاعتماد', maintenance_id: 'فاتورة الصيانة',
 };
 export const VALUE_LABELS = { op_status: LABELS.op_status, op_state: { inside: 'تعمل داخل الموقع', outside: 'تعمل خارج الموقع', other: 'أخرى' }, location_status: LABELS.location_status, payment_status: LABELS.payment_status, status: { ...LABELS.accident_status, ...LABELS.employee_status, ...LABELS.mr_status }, meter_unit: LABELS.meter_unit, status_before: LABELS.op_status, status_after: LABELS.op_status, doc_type: LABELS.doc_type };

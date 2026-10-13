@@ -15,6 +15,7 @@ import { saved } from './form.js';
 import { pruneDrafts } from './drafts.js';
 import { renderProtect } from './pages/protect.js';
 import { renderVehicleFields, renderVehiclesArchive } from './pages/vehicle-admin.js';
+import { renderRequestsAdmin } from './pages/request-admin.js';
 import { renderOil, renderMaintenance, renderAccidents, oilForm, maintForm, accidentForm } from './pages/ops.js';
 import { renderHandovers, handoverForm } from './pages/handovers.js';
 import { renderHousing, renderFood, housingForm, foodForm } from './pages/camp.js';
@@ -26,7 +27,7 @@ import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 
-export const VERSION = '1.8';
+export const VERSION = '1.9';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -216,6 +217,7 @@ async function route() {
     else if (page === 'audit') await renderAudit(el);
     else if (page === 'settings' && id === 'vehicle-fields') await renderVehicleFields(el);
     else if (page === 'settings' && id === 'vehicles-archive') await renderVehiclesArchive(el);
+    else if (page === 'settings' && id === 'requests') await renderRequestsAdmin(el, params);
     else if (page === 'settings') await renderSettings(el);
     else if (page === 'backup') await renderProtect(el);
     else if (page === 'excel') await renderExcel(el);

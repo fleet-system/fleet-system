@@ -5,7 +5,7 @@ import * as data from '../data.js';
 import { html, raw, icon, toast, $ } from '../ui.js';
 import { label, LABELS, num, date, dateTime, todayISO, errorText } from '../fmt.js';
 import { openForm, confirmBox, saved, userError } from '../form.js';
-import { renderList, archive } from '../listpage.js';
+import { renderList } from '../listpage.js';
 import { attachmentsDialog, mountAttachments } from '../attachments.js';
 import { maintForm } from './ops.js';
 
@@ -211,7 +211,9 @@ async function renderRequest(el, id, params) {
   if (!r) { el.innerHTML = html`<div class="empty"><h1>الطلب غير موجود</h1><a class="btn btn-primary" href="#/requests">طلبات الصيانة</a></div>`; return; }
   const history = r.vehicle_id ? (await api.get('maintenance_requests', { select: 'id,request_no,request_date,status,fault,last_change_date', vehicle_id: `eq.${r.vehicle_id}`, deleted_at: 'is.null', order: 'request_date.desc,request_no.desc' })).filter((h) => h.id !== r.id) : [];
   const company = r.company_id ? data.companyName(r.company_id) : '';
-  const canEdit = api.can('edit'), canApprove = api.can('approve_maintenance');
+  const archived = !!r.deleted_at;
+  if (archived) { try { const [x] = await api.get('v_requests_archive', { select: 'deleted_by_name', id: `eq.${r.id}` }); r.deleted_by_name = x?.deleted_by_name; } catch (_) { /* قبل تحديث قاعدة البيانات */ } }
+  const canEdit = api.can('edit') && !archived, canApprove = api.can('approve_maintenance') && !archived;
   const btn = (act, t, ic, primary = false) => html`<button class="btn ${primary ? 'btn-primary' : ''}" data-act="${act}">${ic ? icon(ic) : ''}<span>${t}</span></button>`;
   const acts = [];
   if (canEdit && OPEN.includes(r.status)) acts.push(btn('edit', 'تعديل الطلب', 'edit'));
@@ -222,14 +224,16 @@ async function renderRequest(el, id, params) {
   if (api.can('create') && r.vehicle_id && ['approved', 'in_progress', 'completed'].includes(r.status) && !r.maintenance_id) acts.push(btn('invoice', 'تسجيل فاتورة الصيانة', 'invoice'));
   el.innerHTML = html`
     <div class="no-print print-bar mr-bar">
-      <a class="back" href="#/requests">${icon('back')}<span>طلبات الصيانة</span></a>
+      <a class="back" href="${archived ? '#/settings/requests?tab=archive' : '#/requests'}">${icon('back')}<span>${archived ? 'طلبات الصيانة المحذوفة' : 'طلبات الصيانة'}</span></a>
       <div class="btn-row">
         ${raw(acts.join(''))}
         ${btn('print', 'طباعة', 'print')}${btn('pdf', 'تصدير PDF', 'doc')}
-        ${raw(api.can('create') ? String(btn('new', 'طلب صيانة جديد', 'plus')) : '')}
-        ${raw(canEdit && ['new', 'rejected'].includes(r.status) ? String(btn('archive', 'أرشفة', '')) : '')}
+        ${raw(api.can('create') && !archived ? String(btn('new', 'طلب صيانة جديد', 'plus')) : '')}
+        ${raw(canEdit ? String(btn('archive', 'حذف الطلب إلى السجل', 'clock')) : '')}
       </div>
     </div>
+    ${raw(archived ? html`<div class="bad-box archived-box no-print">${icon('alert')}<div><b>هذا الطلب في سجل طلبات الصيانة المحذوفة</b> — حُذف من القوائم بتاريخ <span class="num">${dateTime(r.deleted_at)}</span>${r.deleted_by_name ? ` بواسطة ${r.deleted_by_name}` : ''}${r.delete_reason ? ` · السبب: ${r.delete_reason}` : ''}.
+      كل بياناته ومرفقاته وفاتورته المرتبطة محفوظة، ولا يظهر في التنبيهات.${raw(api.can('edit') ? html`<div class="btn-row"><button class="btn btn-primary" data-act="restore">${icon('shield')}<span>استرجاع الطلب</span></button></div>` : '')}</div></div>` : '')}
     ${requestSheet(r, company, history)}
     <section class="panel no-print mr-track">
       <div class="tab-head"><h2>متابعة الطلب</h2>${mrTag(r.status)}</div>
@@ -274,9 +278,29 @@ async function renderRequest(el, id, params) {
       if (m?.id) { await api.update('maintenance_requests', { id: `eq.${r.id}` }, { maintenance_id: m.id }); saved('تم تسجيل الفاتورة وربطها بالطلب'); reload(); }
     }
     if (a === 'new') { const n = await requestForm(r.vehicle_id); if (n) { saved(`تم حفظ الطلب ${n.request_no}`); location.hash = `#/requests/${n.id}`; } }
-    if (a === 'archive' && await archive('maintenance_requests', r, `طلب الصيانة ${r.request_no}`)) location.hash = '#/requests';
+    if (a === 'archive' && await archiveRequest(r)) location.hash = '#/requests';
+    if (a === 'restore' && await restoreRequest(r)) reload();
   };
   // المرفقات تُحمَّل بعد ربط الأزرار حتى لا تعمل الأزرار ببيانات قديمة أثناء التحميل
   await mountAttachments($('.att-box', el), { entity_type: 'maintenance_request', entity_id: r.id, title: `مرفقات ${r.request_no}` });
   if (params?.get('print') === '1') setTimeout(() => window.print(), 300);
+}
+
+// حذف طلب الصيانة = نقله إلى سجل المحذوفات (لا يُمسح شيء، ويمكن استرجاعه)
+export async function archiveRequest(r) {
+  return openForm({
+    title: 'حذف الطلب إلى السجل', draft: false, submitText: 'حذف إلى السجل',
+    intro: html`سيُنقل طلب الصيانة <b>${r.request_no}</b> إلى «سجل طلبات الصيانة المحذوفة» في الإعدادات، ويختفي من القوائم والتنبيهات والتقارير.
+      لا يُمسح أي شيء: رقمه وبياناته ومرفقاته وفاتورته وسجل تعديلاته تبقى محفوظة، ويمكن استرجاعه في أي وقت.`.toString(),
+    fields: [{ name: 'reason', label: 'سبب الحذف (اختياري)', type: 'textarea', full: true }],
+    onSubmit: async (v) => { await api.rpc('archive_request', { p_id: r.id, p_reason: v.reason || null }); saved(`نُقل الطلب ${r.request_no} إلى سجل المحذوفات`); return true; },
+  });
+}
+export async function restoreRequest(r) {
+  return openForm({
+    title: 'استرجاع الطلب', draft: false, submitText: 'استرجاع الطلب',
+    intro: html`سيعود طلب الصيانة <b>${r.request_no}</b> إلى قائمة طلبات الصيانة بنفس رقمه وحالته وكل بياناته ومرفقاته.`.toString(),
+    fields: [{ name: 'reason', label: 'ملاحظة (اختياري)', type: 'textarea', full: true }],
+    onSubmit: async (v) => { await api.rpc('restore_request', { p_id: r.id, p_reason: v.reason || null }); saved(`تم استرجاع الطلب ${r.request_no}`); return true; },
+  });
 }

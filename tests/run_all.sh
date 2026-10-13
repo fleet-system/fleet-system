@@ -13,7 +13,7 @@ n=$(bash run_tests.sh 2>&1 | tee "$OUT/db.log" | grep -c '^PASS'); err=$(grep -c
 note "database rules (schema_tests.sql): PASS $n, FAIL $err"
 for tz in UTC America/New_York Asia/Riyadh Pacific/Kiritimati; do note "$(TZ=$tz node unit_js.mjs | head -1)"; done
 
-for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo robust_ui; do
+for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo ui_request_archive robust_ui; do
   bash reset_ui_db.sh >/dev/null
   python3 -I $t.py "$OUT/$t" > "$OUT/$t.log" 2>&1
   note "$t: $(grep -E '^(PASS|PASSED|ALL UI CHECKS PASSED)' "$OUT/$t.log" | head -1) $(grep -E '^FAIL' "$OUT/$t.log" | head -1) $(grep -c Traceback "$OUT/$t.log") crash"

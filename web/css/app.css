@@ -785,3 +785,4 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 /* الجداول العريضة تتمرر داخل بطاقتها بدل أن تدفع الصفحة كلها (كانت تخفي القائمة الجانبية في الكمبيوتر) */
 .table-wrap { position: relative; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 .page { min-width: 0; }
+a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }

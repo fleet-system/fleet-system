@@ -39,6 +39,13 @@ export async function renderSettings(el) {
         <a class="btn" href="#/settings/vehicles-archive">${icon('clock')}<span>سجل السيارات المحذوفة</span></a></div>
     </section>
 
+    <section class="panel">
+      <div class="tab-head"><h2>إدارة طلبات الصيانة</h2></div>
+      <p>حذف طلب صيانة ينقله إلى «سجل الطلبات المحذوفة» ولا يمسحه: تبقى بياناته ومرفقاته وفاتورته محفوظة، ويُسجَّل الحذف في سجل التعديلات، ويمكن استرجاعه في أي وقت.</p>
+      <div class="btn-row wrap"><a class="btn btn-primary" href="#/settings/requests">${icon('wrench')}<span>إدارة طلبات الصيانة</span></a>
+        <a class="btn" href="#/settings/requests?tab=archive">${icon('clock')}<span>سجل الطلبات المحذوفة</span></a></div>
+    </section>
+
     <section class="panel backup">
       <div class="tab-head"><h2>النسخ الاحتياطي وحماية البيانات</h2></div>
       ${raw(me.is_admin ? html`
