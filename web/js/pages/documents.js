@@ -44,7 +44,7 @@ export async function renderDocuments(el) {
         <td data-l="تاريخ الانتهاء" class="num">${date(r.expiry_date)}</td>
         <td data-l="المتبقي">${r.days_left == null ? '—' : statusText({ ...r, alert_type: r.doc_type })}${r.alert_level ? raw(html`<small class="muted">تنبيه ${r.alert_level} يوماً</small>`) : ''}</td>
         <td data-l="الحالة"><span class="tag t-${r.status}">${r.doc_type === 'authorization' ? label('auth_status', r.status) : label('doc_status', r.status)}</span></td>
-        <td class="act"><a class="btn btn-sm" href="#/${r.owner_type === 'vehicle' ? 'vehicles' : 'employees'}/${r.owner_id}${r.owner_type === 'vehicle' ? (r.doc_type === 'authorization' ? '?tab=auth' : '?tab=docs') : ''}">فتح السجل</a></td>
+        <td class="act"><a class="btn btn-sm" href="#/${r.owner_type === 'vehicle' ? 'vehicles' : 'employees'}/${r.owner_id}${r.owner_type === 'vehicle' ? (r.doc_type === 'authorization' ? '?tab=auth' : r.doc_type === 'vehicle_authorization' ? '?tab=basic' : '?tab=docs') : ''}">فتح السجل</a></td>
       </tr>`).join(''))}</tbody></table>${moreRows(Math.min(pager.limit, list.length), list.length)}</div>`
       : html`<div class="empty soft"><p>${st.show === 'attn' ? 'لا توجد وثائق تحتاج متابعة لهذا الاختيار.' : 'لا توجد وثائق.'}</p></div>`;
   };

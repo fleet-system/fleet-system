@@ -11,7 +11,7 @@ export const BUILTIN = [
   ['plate_letters', 'اللوحة (حروف)', 1], ['plate_digits', 'اللوحة (أرقام)', 1], ['make', 'ماركة السيارة', 1], ['model', 'طراز المركبة', 1],
   ['manufacture_year', 'الموديل', 1], ['vin', 'رقم الهيكل', 1], ['registration_type', 'نوع التسجيل', 1], ['wheels_count', 'عدد العجلات', 1],
   ['site_name', 'المشروع الحالي', 2], ['op_state', 'الحالة التشغيلية', 2], ['notes', 'ملاحظة', 2],
-  ['current_user_name', 'المستخدم الحالي', 3], ['current_user_id_no', 'هوية المستخدم', 3], ['current_user_mobile', 'رقم هاتف السائق', 3], ['owner_company', 'المالك', 3], ['owner_id_no', 'هوية المالك', 3],
+  ['current_user_name', 'المستخدم الحالي', 3], ['card_auth_status', 'حالة التفويض', 3], ['card_auth_expiry', 'تاريخ انتهاء التفويض', 3], ['current_user_id_no', 'هوية المستخدم', 3], ['current_user_mobile', 'رقم هاتف السائق', 3], ['owner_company', 'المالك', 3], ['owner_id_no', 'هوية المالك', 3],
   ['registration_serial', 'الرقم التسلسلي للاستمارة', 4], ['registration_expiry', 'تاريخ انتهاء رخصة السير', 4], ['inspection_expiry', 'تاريخ انتهاء الفحص', 4], ['insurance_expiry', 'تاريخ انتهاء تأمين السيارة', 4],
   ['cost_oil', 'تكلفة تغيير الزيت (ر.س)', 5], ['cost_maint', 'تكلفة الصيانة (ر.س)', 5], ['cost_maint_total', 'إجمالي تكلفة الصيانة (ر.س)', 5],
 ];

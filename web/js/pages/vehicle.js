@@ -4,7 +4,7 @@ import * as data from '../data.js';
 import { html, raw, icon, toast, $ } from '../ui.js';
 import { label, km, num, money, date, dateTime, todayISO, saMobileLocal } from '../fmt.js';
 import { openForm, saved, userError, localParts } from '../form.js';
-import { saveDriverDocs, vehicleCardForm, opStateOf, opChip, docState, costSummary, cfText } from './vehicles.js';
+import { saveDriverDocs, vehicleCardForm, opStateOf, opChip, docState, costSummary, cfText, authState, AUTH_CHOICES } from './vehicles.js';
 import { fieldLabel as L, customFields, SECTIONS } from '../vehicle-config.js';
 import { FIELDS, VALUE_LABELS } from './audit.js';
 import { confirmBox } from '../form.js';
@@ -52,6 +52,8 @@ export async function renderVehicle(el, id, params) {
   // بطاقة في سجل السيارات المحذوفة: تُعرض كاملة للاطلاع والاسترداد (بدون تعديل)
   let archived = false;
   if (!v) { const [a] = await api.get('v_vehicles_archive', { select: '*', id: `eq.${id}` }).catch(() => []); if (a) { v = a; archived = !!a.deleted_at; } }
+  // تفويض السيارة في البطاقة (القسم الثالث) يُقرأ من جدول السيارات مباشرة حتى لا يضيع عند التعديل
+  if (v) { const [ca] = await api.get('vehicles', { select: 'card_auth_status,card_auth_expiry', id: `eq.${id}` }).catch(() => []); v.card_auth_status = ca?.card_auth_status ?? null; v.card_auth_expiry = ca?.card_auth_expiry ?? null; }
   const sensOk = api.can('view_sensitive');
   const [dDocs, dPriv] = v?.current_driver_id ? await Promise.all([
     api.get('v_document_status', { select: 'doc_type,expiry_date,days_left,status,record_id', owner_type: 'eq.employee', owner_id: `eq.${v.current_driver_id}` }),
@@ -178,7 +180,11 @@ export async function renderVehicle(el, id, params) {
       <section class="vcard-sec"><h3>ثانياً: التشغيل والمشاريع</h3>${kv([
         [L('site_name', 'المشروع الحالي'), v.site_name], [L('op_state', 'الحالة التشغيلية'), raw(opChip(v))], [L('notes', 'ملاحظة'), v.notes ? raw(html`<span class="pre">${v.notes}</span>`) : null]])}${raw(more(2))}</section>
       <section class="vcard-sec"><h3>ثالثاً: المسؤولية والمالكون</h3>${kv([
-        [L('current_user_name', 'المستخدم الحالي'), v.current_user_name], [L('current_user_id_no', 'هوية المستخدم'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.current_user_id_no || '—'}</span>`) : hidden],
+        [L('current_user_name', 'المستخدم الحالي'), v.current_user_name],
+        [L('card_auth_status', 'حالة التفويض'), v.card_auth_status ? AUTH_CHOICES[v.card_auth_status] : null],
+        [L('card_auth_expiry', 'تاريخ انتهاء التفويض'), v.card_auth_expiry ? raw(html`<span class="num">${date(v.card_auth_expiry)}</span>`) : null],
+        ['حالة انتهاء التفويض', raw((() => { const s = authState(v.card_auth_status, v.card_auth_expiry); return html`<span class="tag t-${s.tag}" data-auth-state="${s.key}">${s.text}</span> <small class="${s.key === 'no_date' || s.key === 'expired' ? 'bad-text' : 'muted'}">${s.note}</small>`; })())],
+        [L('current_user_id_no', 'هوية المستخدم'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.current_user_id_no || '—'}</span>`) : hidden],
         [L('current_user_mobile', 'رقم هاتف السائق'), mobileCell()]])}
         ${kv([[L('owner_company', 'المالك'), v.owner_company_name], [L('owner_id_no', 'هوية المالك'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.owner_id_no || '—'}</span>`) : hidden]])}${raw(more(3))}</section>
       <section class="vcard-sec"><h3>رابعاً: التراخيص والمستندات</h3>
@@ -268,6 +274,11 @@ export async function renderVehicle(el, id, params) {
     <a class="back" href="${archived ? '#/settings/vehicles-archive' : '#/vehicles'}">${icon('back')}<span>${archived ? 'سجل السيارات المحذوفة' : 'السيارات'}</span></a>
     ${raw(archived ? html`<div class="bad-box archived-box">${icon('alert')}<div><b>هذه البطاقة في سجل السيارات المحذوفة</b> — حُذفت من العرض النشط بتاريخ <span class="num">${dateTime(v.deleted_at)}</span>${v.deleted_by_name ? ` بواسطة ${v.deleted_by_name}` : ''}${v.delete_reason ? ` · السبب: ${v.delete_reason}` : ''}.
       جميع معلوماتها وسجلاتها محفوظة، وتنبيهاتها متوقفة.${raw(canRestore ? html`<div class="btn-row"><button class="btn btn-primary" data-act="restore-card">${icon('shield')}<span>استرداد البطاقة</span></button></div>` : '')}</div></div>` : '')}
+    ${raw((() => { if (archived) return ''; const s = authState(v.card_auth_status, v.card_auth_expiry);
+      if (s.key === 'expired') return html`<p class="bad-box auth-alert">${icon('alert')}<span><b>انتهى تفويض السيارة</b> — بتاريخ <span class="num">${date(v.card_auth_expiry)}</span> (${s.note}). جدّد التفويض وعدّل التاريخ في بطاقة السيارة.</span></p>`;
+      if (s.key === 'no_date') return html`<p class="warn-box auth-alert">${icon('alert')}<span><b>السيارة مفوضة بدون تاريخ انتهاء</b> — يرجى تحديد تاريخ انتهاء التفويض.</span></p>`;
+      if (s.key === 'expiring') return html`<p class="warn-box auth-alert">${icon('clock')}<span><b>اقترب انتهاء تفويض السيارة</b> — ينتهي بتاريخ <span class="num">${date(v.card_auth_expiry)}</span> (${s.note.replace(' — اقترب موعد الانتهاء', '')}).</span></p>`;
+      return ''; })())}
     <header class="vhead">
       <div class="vhead-main">
         <div class="plate-big plate">${v.plate_no}</div>

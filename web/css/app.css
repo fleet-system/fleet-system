@@ -786,3 +786,4 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .table-wrap { position: relative; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; }
 .page { min-width: 0; }
 a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
+.bad-text { color: var(--bad); font-weight: 600; }

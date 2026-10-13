@@ -129,6 +129,9 @@ export function vehicleFields({ isNew, sug, costsFromRecords = false }) {
 
     { type: 'section', label: 'ثالثاً: المسؤولية والمالكون' },
     { name: 'current_user_name', label: 'المستخدم الحالي', type: 'combo', options: sug.users },
+    { name: 'card_auth_status', label: 'حالة التفويض', type: 'select', options: Object.entries(AUTH_CHOICES), help: 'اختر: مفوضة أو غير مفوضة' },
+    { name: 'card_auth_expiry', label: 'تاريخ انتهاء التفويض', type: 'date', help: 'من التقويم أو بصيغة YYYY/MM/DD' },
+    { name: 'auth_live', type: 'info' },
   ];
   if (sens) f.push({ name: 'current_user_id_no', label: 'هوية المستخدم', inputmode: 'numeric', dir: 'ltr', western: true, normalize: idNo, preview: idKind, help: 'رقم الهوية الوطنية أو رقم الإقامة' });
   f.push({ name: 'current_user_mobile', label: 'رقم هاتف السائق', type: 'tel', inputmode: 'tel', dir: 'ltr', western: true, full: true, normalize: saMobile, preview: (m) => `✓ ${localMobile(m)}`, help: 'مثل 0501234567' });
@@ -173,6 +176,23 @@ export function vehicleFields({ isNew, sug, costsFromRecords = false }) {
   return f;
 }
 
+// تفويض السيارة في البطاقة (القسم الثالث): الحالة تُحسب من الاختيار والتاريخ مقارنةً بتاريخ اليوم
+export const AUTH_CHOICES = { authorized: 'مفوضة', not_authorized: 'غير مفوضة' };
+export const authAlertDays = () => { const n = Number(data.setting('vehicle_auth_alert_days', 30)); return Number.isInteger(n) && n >= 1 && n <= 365 ? n : 30; };
+export function authState(status, expiry) {
+  if (status === 'not_authorized') return { key: 'not_authorized', tag: 'not_authorized', text: 'غير مفوضة', note: 'السيارة غير مفوضة، ولا تُعد منتهية.' };
+  if (status !== 'authorized') return { key: 'none', tag: 'missing', text: 'غير محدد', note: 'لم تُحدد حالة التفويض.' };
+  if (!expiry) return { key: 'no_date', tag: 'no_date', text: 'غير محدد التاريخ', note: 'يرجى تحديد تاريخ انتهاء التفويض' };
+  const d = Math.round((new Date(expiry) - new Date(todayISO())) / 864e5);
+  if (d < 0) return { key: 'expired', tag: 'expired', text: 'منتهٍ', days: d, note: `انتهى التفويض منذ ${Math.abs(d)} يوم` };
+  const soon = d <= authAlertDays();
+  return { key: soon ? 'expiring' : 'valid', tag: soon ? 'expiring' : 'valid', text: 'غير منتهٍ', days: d, note: d === 0 ? 'ينتهي التفويض اليوم' : `باقي ${d} يوم${soon ? ' — اقترب موعد الانتهاء' : ''}` };
+}
+const authLive = (status, expiry) => {
+  const s = authState(status, expiry);
+  return html`<div class="doc-live"><span>حالة انتهاء التفويض: <span class="tag t-${s.tag}">${s.text}</span></span><small class="${s.key === 'no_date' || s.key === 'expired' ? 'bad-text' : 'muted'}">${s.note}</small></div>`;
+};
+
 // تحديث الأجزاء التلقائية في النموذج (الأيام المتبقية، الحالة، الإجمالي، طرازات الماركة، حقل «أخرى»)
 function cardOnChange(sug, recCosts) {
   return (ctx, name) => {
@@ -181,6 +201,7 @@ function cardOnChange(sug, recCosts) {
     const box = form.elements.op_state_text.closest('.field'); box.hidden = !other;
     form.elements.op_state_text.required = other;
     for (const [n, live] of [['registration_expiry', 'reg_live'], ['inspection_expiry', 'insp_live'], ['insurance_expiry', 'ins_live']]) ctx.live(live, docLive(v[n]));
+    ctx.live('auth_live', authLive(v.card_auth_status, v.card_auth_expiry));
     if (!name || name === 'make') {
       const dl = form.elements.model.list;
       if (dl) dl.innerHTML = sug.modelsFor(form.elements.make.value).map((o) => html`<option value="${o}"></option>`).join('');
@@ -219,6 +240,7 @@ export async function vehicleRecord(v, { costsFromRecords = false, existingCusto
     current_user_name: v.current_user_name, current_user_mobile: v.current_user_mobile,
     registration_serial: v.registration_serial, insurance_expiry: v.insurance_expiry,
     cost_oil: v.cost_oil, cost_maint: v.cost_maint,
+    card_auth_status: v.card_auth_status || null, card_auth_expiry: v.card_auth_expiry || null,
   };
   if (!costsFromRecords) rec.cost_maint_total = v.cost_maint_total;
   // الحقول الإضافية: تُدمج مع القيم المحفوظة (قيم الحقول الموقوفة تبقى كما هي)
@@ -313,11 +335,15 @@ const st = { q: '', op: '', loc: '', owner: '', site: '', ins: '', insFrom: '', 
 export async function renderVehicles(el) {
   await data.lookups();
   const extraCols = customFields().filter((c) => c.in_list);
-  const [rows, vdocs] = await Promise.all([
+  const [rows, vdocs, vauth] = await Promise.all([
     api.get('v_vehicles_overview', { select: '*', order: 'code' }),
     api.get('v_document_status', { select: 'owner_id,doc_type,expiry_date,status,days_left', owner_type: 'eq.vehicle', doc_type: 'in.(registration,periodic_inspection)' }),
+    api.get('vehicles', { select: 'id,card_auth_status,card_auth_expiry', deleted_at: 'is.null' }).catch(() => []),
   ]);
+  const authById = new Map(vauth.map((a) => [a.id, a]));
   for (const r of rows) {
+    Object.assign(r, { card_auth_status: null, card_auth_expiry: null }, authById.get(r.id) ? { card_auth_status: authById.get(r.id).card_auth_status, card_auth_expiry: authById.get(r.id).card_auth_expiry } : {});
+    r.cauth = r.card_auth_status ? authState(r.card_auth_status, r.card_auth_expiry) : null;
     const g = (t) => vdocs.find((d) => d.owner_id === r.id && d.doc_type === t);
     r.reg = g('registration'); r.insp = g('periodic_inspection');
     r.reg_expiry = r.reg?.expiry_date || null; r.insp_expiry = r.insp?.expiry_date || null;
@@ -372,7 +398,7 @@ export async function renderVehicles(el) {
           <td data-l="الشركة المالكة">${r.owner_company_name}</td>
           <td data-l="الموقع الحالي">${r.site_name || '—'}${raw(r.location_text ? html`<small class="muted">${r.location_text}</small>` : '')}</td>
           <td data-l="السائق الحالي">${r.driver_name || '—'}</td>
-          <td data-l="حالة التفويض"><span class="tag t-${r.authorization_status}">${label('auth_status', r.authorization_status)}</span></td>
+          <td data-l="حالة التفويض">${r.cauth ? raw(html`<span class="tag t-${r.cauth.tag}">${r.card_auth_status === 'authorized' ? `مفوضة · ${r.cauth.text}` : r.cauth.text}</span>`) : raw(html`<span class="tag t-${r.authorization_status}">${label('auth_status', r.authorization_status)}</span>`)}</td>
           <td data-l="الحالة التشغيلية">${raw(opChip(r))}</td>
           <td data-l="حالة السيارة"><span class="pill st-${r.op_status}">${label('op_status', r.op_status)}</span></td>
           <td data-l="قراءة العداد" class="num">${km(r.odometer)}</td>

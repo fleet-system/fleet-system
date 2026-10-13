@@ -76,12 +76,12 @@ export const km = (v) => (v == null ? '—' : `${num(v)} كم`);
 export const LABELS = {
   op_status: { working: 'تعمل', stopped: 'متوقفة', under_maintenance: 'تحت الصيانة', accident_damaged: 'متضررة بحادث' },
   location_status: { inside_site: 'داخل الموقع', outside_site: 'خارج الموقع', in_workshop: 'في الورشة' },
-  doc_type: { iqama: 'الإقامة', driving_license: 'رخصة القيادة', registration: 'الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', insurance: 'التأمين' },
+  doc_type: { iqama: 'الإقامة', driving_license: 'رخصة القيادة', registration: 'الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', insurance: 'التأمين', vehicle_authorization: 'تفويض السيارة' },
   doc_status: { valid: 'سارية', expiring: 'اقتربت من الانتهاء', expired: 'منتهية', no_date: 'لا يوجد تاريخ مسجل', missing: 'غير مسجلة', not_authorized: 'غير مفوض' },
   auth_status: { valid: 'ساري', expired: 'منتهٍ', missing: 'غير متوفر', not_authorized: 'غير مفوض', no_date: 'بلا تاريخ', no_driver: 'بلا سائق' },
   oil_status: { not_due: 'لم يحن موعد التغيير', soon: 'اقترب موعد التغيير', due: 'حان موعد التغيير', overdue: 'تجاوز موعد التغيير', no_record: 'لا يوجد سجل' },
   accident_status: { new: 'جديد', awaiting_estimate: 'بانتظار التقدير', awaiting_repair: 'بانتظار الإصلاح', repairing: 'جارٍ الإصلاح', completed: 'مكتمل' },
-  alert_type: { iqama: 'انتهاء الإقامة', driving_license: 'انتهاء رخصة القيادة', registration: 'انتهاء الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', oil_change: 'تغيير الزيت', accident: 'حادث مفتوح', maintenance_request: 'طلب صيانة', insurance: 'انتهاء التأمين' },
+  alert_type: { iqama: 'انتهاء الإقامة', driving_license: 'انتهاء رخصة القيادة', registration: 'انتهاء الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', oil_change: 'تغيير الزيت', accident: 'حادث مفتوح', maintenance_request: 'طلب صيانة', insurance: 'انتهاء التأمين', vehicle_authorization: 'انتهاء تفويض السيارة' },
   mr_status: { new: 'جديد', pending_supervisor: 'بانتظار اعتماد المشرف', approved: 'معتمد', in_progress: 'قيد الصيانة', completed: 'مكتمل', rejected: 'مرفوض' },
   meter_unit: { km: 'كيلومتر', hours: 'ساعة تشغيل' },
   employee_status: { active: 'على رأس العمل', on_leave: 'في إجازة', terminated: 'منتهي الخدمة', other: 'أخرى' },
@@ -98,6 +98,7 @@ export function statusText(r) {
   if (r.alert_type === 'oil_change') return r.km_left < 0 ? `متجاوز بـ ${n(r.km_left)} كم` : `باقي ${n(r.km_left)} كم`;
   if (r.alert_type === 'maintenance_request') return `${label('mr_status', r.status)} منذ ${n(r.days_left)} يوم`;
   if (r.alert_type === 'accident') return `${label('accident_status', r.status)} منذ ${n(r.days_left)} يوم`;
+  if (r.alert_type === 'vehicle_authorization' && r.status === 'no_date') return 'يرجى تحديد تاريخ انتهاء التفويض';
   if (r.status === 'missing' || r.status === 'no_date' || r.status === 'not_authorized')
     return r.alert_type === 'authorization' ? label('auth_status', r.status) : label('doc_status', r.status);
   if (r.days_left < 0) return `منتهية منذ ${n(r.days_left)} يوم`;

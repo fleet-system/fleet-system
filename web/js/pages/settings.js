@@ -23,6 +23,7 @@ export async function renderSettings(el) {
       <div class="tab-head"><h2>التنبيهات والحسابات</h2>${raw(canEdit ? html`<button class="btn btn-sm" data-act="edit">${icon('edit')}<span>تعديل</span></button>` : '')}</div>
       <dl class="dl">
         <div><dt>التنبيه قبل انتهاء الوثائق (أيام)</dt><dd class="num">${(S.doc_alert_days || [90, 60, 30, 7]).join('، ')}</dd></div>
+        <div><dt>التنبيه قبل انتهاء تفويض السيارة (أيام)</dt><dd class="num">${num(S.vehicle_auth_alert_days ?? 30)}</dd></div>
         <div><dt>فترة تغيير الزيت الافتراضية</dt><dd class="num">${num(S.oil_default_interval_km ?? 10000)} كم</dd></div>
         <div><dt>تنبيه الزيت عند بقاء</dt><dd class="num">${num(S.oil_warning_km ?? 1000)} كم أو أقل</dd></div>
         <div><dt>«تجاوز موعد التغيير» بعد تخطي الموعد بـ</dt><dd class="num">${num(S.oil_overdue_tolerance_km ?? 500)} كم</dd></div>
@@ -81,19 +82,20 @@ export async function renderSettings(el) {
         title: 'تعديل الإعدادات',
         fields: [
           { name: 'doc_alert_days', label: 'التنبيه قبل انتهاء الوثائق (أيام، افصل بفاصلة)', required: true, dir: 'ltr', full: true, help: 'مثال: 90, 60, 30, 7' },
+          { name: 'vehicle_auth_alert_days', label: 'التنبيه قبل انتهاء تفويض السيارة (أيام)', type: 'number', required: true, min: 1, max: 365, help: 'مثال: 30 — يظهر تنبيه «اقترب الانتهاء» قبل هذه المدة' },
           { name: 'oil_default_interval_km', label: 'فترة تغيير الزيت الافتراضية للسيارات الجديدة (كم)', type: 'number', required: true, min: 500, max: 100000 },
           { name: 'oil_warning_km', label: 'تنبيه الزيت عند بقاء (كم)', type: 'number', required: true, min: 0, max: 20000 },
           { name: 'oil_overdue_tolerance_km', label: '«تجاوز الموعد» بعد تخطيه بـ (كم)', type: 'number', required: true, min: 0, max: 20000 },
           { name: 'vat_percent', label: 'نسبة ضريبة القيمة المضافة (%)', type: 'number', decimal: true, required: true, min: 0, max: 100 },
         ],
         values: {
-          doc_alert_days: (S.doc_alert_days || [90, 60, 30, 7]).join(', '), oil_default_interval_km: S.oil_default_interval_km ?? 10000,
+          doc_alert_days: (S.doc_alert_days || [90, 60, 30, 7]).join(', '), vehicle_auth_alert_days: S.vehicle_auth_alert_days ?? 30, oil_default_interval_km: S.oil_default_interval_km ?? 10000,
           oil_warning_km: S.oil_warning_km ?? 1000, oil_overdue_tolerance_km: S.oil_overdue_tolerance_km ?? 500, vat_percent: Math.round(Number(S.default_vat_rate ?? 0.15) * 1000) / 10,
         },
         onSubmit: async (v) => {
           const days = toWestern(v.doc_alert_days).split(/[,،\s]+/).filter(Boolean).map(Number);
           if (!days.length || days.some((d) => !Number.isInteger(d) || d < 1 || d > 365)) throw userError('أيام التنبيه يجب أن تكون أرقاماً صحيحة بين 1 و 365.');
-          const put = { doc_alert_days: [...new Set(days)].sort((a, b) => b - a), oil_default_interval_km: v.oil_default_interval_km, oil_warning_km: v.oil_warning_km, oil_overdue_tolerance_km: v.oil_overdue_tolerance_km, default_vat_rate: Math.round(v.vat_percent * 10) / 1000 };
+          const put = { doc_alert_days: [...new Set(days)].sort((a, b) => b - a), vehicle_auth_alert_days: v.vehicle_auth_alert_days, oil_default_interval_km: v.oil_default_interval_km, oil_warning_km: v.oil_warning_km, oil_overdue_tolerance_km: v.oil_overdue_tolerance_km, default_vat_rate: Math.round(v.vat_percent * 10) / 1000 };
           for (const [key, value] of Object.entries(put)) {
             const u = await api.update('app_settings', { key: `eq.${key}` }, { value });
             if (!u.length) await api.insert('app_settings', { key, value });
