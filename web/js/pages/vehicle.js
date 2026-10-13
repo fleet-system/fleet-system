@@ -306,6 +306,7 @@ export async function renderVehicle(el, id, params) {
         <button class="btn" data-act="hand">${icon('swap')}<span>نموذج استلام أو تسليم</span></button>` : '')}
         <button class="btn" data-tab="files">${icon('invoice')}<span>الفواتير والصور</span></button>
         <button class="btn" data-act="print">${icon('print')}<span>طباعة ملف السيارة</span></button>
+        <button class="btn" data-act="renewal-pdf">${icon('print')}<span>تقرير تجديد المركبة PDF</span></button>
         <button class="btn" ${soon(7)}>${icon('table')}<span>تصدير إلى Excel</span></button>
         ${raw(canEdit ? html`<button class="btn btn-danger-soft" data-act="archive">${icon('close')}<span>حذف البطاقة إلى السجل</span></button>` : '')}
       </div>
@@ -402,6 +403,13 @@ export async function renderVehicle(el, id, params) {
     const ek = act.replace(/-edit$/, '');
     if (act.endsWith('-edit') && opsMap[ek]) { const [fn, t, list] = opsMap[ek]; const row = list.find((x) => x.id === b.dataset.id); if (row && await fn(null, row)) { saved(); reload(t); } return; }
     if (act === 'ho-approve') { const row = hand.find((x) => x.id === b.dataset.id); if (row && await approveHandover(row)) reload('hand'); return; }
+    if (act === 'renewal-pdf') {
+      const b = e.target.closest('[data-act]'); b.disabled = true; const old = b.innerHTML; b.querySelector('span').textContent = 'جارٍ تجهيز التقرير…';
+      try { const { renewalReport } = await import('../renewal-report.js'); const r = await renewalReport(v.id); toast(r.fallback ? 'افتح نافذة الطباعة واختر «حفظ PDF».' : `تم تنزيل ${r.name}`, 'ok'); }
+      catch (err) { toast(err.message || 'تعذر إنشاء التقرير', 'error'); }
+      finally { b.disabled = false; b.innerHTML = old; }
+      return;
+    }
     if (act === 'print') { el.classList.add('printing'); window.print(); el.classList.remove('printing'); return; }
 
     if (act === 'edit') {
