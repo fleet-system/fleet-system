@@ -45,6 +45,15 @@ export function opStateOf(v) {
   if (v.location_status === 'in_workshop') return { key: 'other', text: 'في الورشة', legacy: true };
   return { key: '', text: '—' };
 }
+// الحالة التشغيلية في البطاقة ← حالة السيارة التي تعتمد عليها لوحة التحكم (تعمل / متوقفة / تحت الصيانة / متضررة بحادث)
+export function opStatusFor(state, text) {
+  if (state !== 'other') return 'working';
+  const t = String(text || '');
+  if (/حادث|متضرر/.test(t)) return 'accident_damaged';
+  if (/متوقف|لا تعمل|معطل/.test(t)) return 'stopped';
+  if (/صيان|ورش/.test(t)) return 'under_maintenance';
+  return 'working';
+}
 export const opChip = (v) => { const o = opStateOf(v); return o.key ? html`<span class="op-chip ${o.key === 'outside' ? 'out' : o.key === 'other' ? 'other' : ''}">${o.key === 'other' ? `أخرى: ${o.text}` : o.text}</span>` : '—'; };
 
 // حالة المستند: ساري / قارب على الانتهاء (30 يوماً أو أقل) / منتهي / غير محدد
@@ -248,6 +257,7 @@ export async function vehicleRecord(v, { costsFromRecords = false, existingCusto
   for (const [k, x] of Object.entries(v)) if (k.startsWith('cf__')) cf[k.slice(4)] = x ?? null;
   rec.custom_fields = cf;
   // الحقل القديم «داخل/خارج الموقع» يبقى متوافقاً (تعتمد عليه لوحة التحكم)
+  rec.op_status = opStatusFor(v.op_state, v.op_state_text);
   if (v.op_state === 'inside') rec.location_status = 'inside_site';
   else if (v.op_state === 'outside') rec.location_status = 'outside_site';
   else if (/ورش/.test(v.op_state_text || '')) rec.location_status = 'in_workshop';
@@ -298,6 +308,9 @@ export async function vehicleCardForm(v = null, { docs = {}, priv = {}, oil = []
         // تحديث السجل نفسه (لا تُنشأ سيارة جديدة)؛ تُرسل الحقول التي تغيّرت فقط
         const same = (a, b) => (a && typeof a === 'object' ? JSON.stringify(a) === JSON.stringify(b || {}) : (a ?? null) === (b ?? null));
         const changed = Object.fromEntries(Object.entries(rec).filter(([k, x]) => !same(x, v[k])));
+        // حالة السيارة تتبع البطاقة فقط عند تغيير الحالة التشغيلية فيها (لا تُلغى حالة سجّلتها صيانة أو حادث)
+        const shown = vehicleValues(v, { docs, priv });
+        if (val.op_state === shown.op_state && (val.op_state_text || '') === (shown.op_state_text || '')) delete changed.op_status;
         // سبب التعديل يُحفظ مع التعديل نفسه في سجل التعديلات
         if (Object.keys(changed).length) changed.change_note = (val.change_note || '').trim() || null;
         row = Object.keys(changed).length ? (await api.update('vehicles', { id: `eq.${v.id}` }, changed))[0] : v;

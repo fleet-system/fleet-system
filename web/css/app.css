@@ -795,3 +795,21 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 /* 1.12: المواقع الموقوفة (مطوية أسفل صفحة الشركات والمواقع) */
 .stopped-sites > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 .stopped-sites[open] > summary { margin-bottom: 8px; }
+
+/* 1.13: صف توزيع السيارات في لوحة التحكم (5 خانات) */
+.kv.three.five { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.kv.three.five li { border: 0; padding: 0; }
+
+/* 1.13: إجمالي السيارات التفاعلي بالألوان */
+.pl-inside { background: var(--ok); } .pl-outside { background: #2a78d6; } .pl-stopped { background: var(--idle); }
+.pl-accident { background: var(--bad); } .pl-workshop { background: var(--warn); }
+.fleet-bar { height: 16px; margin-bottom: 6px; }
+.fleet-bar .seg { border: 0; padding: 0; cursor: pointer; transition: opacity .15s, transform .15s; }
+.fleet-bar .seg:hover, .fleet-bar .seg:focus-visible { transform: scaleY(1.25); outline: none; }
+.has-pick .fleet-bar .seg:not(.on), .has-pick .place-btn:not(.on) { opacity: .35; }
+.pick-info { min-height: 1.4em; margin: 0 0 8px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.place-btn { all: unset; box-sizing: border-box; width: 100%; display: grid; gap: 2px; justify-items: center; padding: 8px 2px; border-radius: 10px; cursor: pointer; transition: background .15s, opacity .15s; }
+.place-btn:hover, .place-btn:focus-visible, .place-btn.on { background: var(--line); }
+.place-btn span { display: inline-flex; align-items: center; gap: 5px; font-size: .82rem; color: var(--muted); text-align: center; }
+.place-btn b { font-size: 1.25rem; color: var(--ink); }
+.place-btn small { font-size: .75rem; }

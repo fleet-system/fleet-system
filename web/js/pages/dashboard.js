@@ -76,19 +76,31 @@ async function loadBody(body, { companies, sites }) {
   const filt = {};
   if (state.company) filt.company_id = `eq.${state.company}`;
   if (state.site) filt.site_id = `eq.${state.site}`;
-  const [s, follow] = await Promise.all([
+  const vfilt = {};
+  if (state.company) vfilt.site_company_id = `eq.${state.company}`;
+  if (state.site) vfilt.site_id = `eq.${state.site}`;
+  const [s, follow, vrows] = await Promise.all([
     api.rpc('dashboard_stats', { p_company: state.company || null, p_site: state.site || null, p_year: state.year, p_month: state.month }),
     api.get('v_followups', { select: '*', ...filt }),
+    api.get('v_vehicles_overview', { select: 'op_status,location_status', ...vfilt }).catch(() => null),
   ]);
+  // توزيع السيارات: داخل/خارج المواقع للسيارات التي تعمل فقط، والمتوقفة والمتضررة والتي في الورشة كلٌّ في خانته (المجموع = إجمالي السيارات)
+  const cnt = (fn) => (vrows || []).filter(fn).length;
+  const place = vrows ? {
+    inside: cnt((v) => v.op_status === 'working' && v.location_status === 'inside_site'),
+    outside: cnt((v) => v.op_status === 'working' && v.location_status === 'outside_site'),
+    stopped: cnt((v) => v.op_status === 'stopped'),
+    accident: cnt((v) => v.op_status === 'accident_damaged'),
+    workshop: cnt((v) => v.op_status === 'under_maintenance' || (v.op_status === 'working' && v.location_status === 'in_workshop')),
+  } : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
   const siteName = (id) => sites.find((x) => x.id === id)?.name || '—';
   const compName = (id) => companies.find((x) => x.id === id)?.name || '—';
   follow.sort((a, b) => a.severity - b.severity || (a.days_left ?? a.km_left ?? 0) - (b.days_left ?? b.km_left ?? 0));
 
   const total = s.vehicles_total || 0;
-  const seg = [
-    ['working', 'تعمل', s.vehicles_working], ['stopped', 'متوقفة', s.vehicles_stopped],
-    ['under_maintenance', 'تحت الصيانة', s.vehicles_maintenance], ['accident_damaged', 'متضررة بحادث', s.vehicles_accident],
-  ];
+  const PLACES = [['inside', 'داخل المواقع'], ['outside', 'خارج المواقع'], ['stopped', 'متوقفة'], ['accident', 'متضررة بحادث'], ['workshop', 'في الورشة']];
+  const placeTotal = PLACES.reduce((t, [k]) => t + (place[k] || 0), 0);
+  const pct = (n) => (placeTotal ? `${Math.round((n / placeTotal) * 100)}%` : '0%');
   const period = `${state.year}/${String(state.month).padStart(2, '0')}`;
   const monthTotal = (+s.cost_maintenance_month) + (+s.cost_oil_month) + (+s.cost_accidents_month) + (+s.cost_housing_food_month);
 
@@ -97,14 +109,12 @@ async function loadBody(body, { companies, sites }) {
       <article class="panel fleet" aria-labelledby="p-fleet">
         <header><h2 id="p-fleet">السيارات</h2><a href="#/vehicles" class="link">عرض السيارات</a></header>
         <div class="big"><span class="num">${num(total)}</span><small>إجمالي السيارات</small></div>
-        <div class="segbar" role="img" aria-label="توزيع السيارات حسب الحالة التشغيلية">
-          ${raw(seg.map(([k, , v]) => (v ? html`<span class="seg st-${k}" style="flex:${v}"></span>` : '')).join('') || '<span class="seg empty-seg" style="flex:1"></span>')}
+        <div class="segbar fleet-bar" role="group" aria-label="توزيع السيارات (اضغط على لون لعرض تفاصيله)">
+          ${raw(PLACES.map(([k, t]) => (place[k] ? html`<button type="button" class="seg pl-${k}" data-pick="${k}" style="flex:${place[k]}" title="${t}: ${num(place[k])} (${pct(place[k])})" aria-label="${t}: ${num(place[k])}"></button>` : '')).join('') || '<span class="seg empty-seg" style="flex:1"></span>')}
         </div>
-        <ul class="legend">${raw(seg.map(([k, t, v]) => html`<li><i class="dot st-${k}"></i>${t}<b class="num">${num(v)}</b></li>`).join(''))}</ul>
-        <ul class="kv three">
-          <li><span>داخل المواقع</span><b class="num">${num(s.vehicles_inside)}</b></li>
-          <li><span>خارج المواقع</span><b class="num">${num(s.vehicles_outside)}</b></li>
-          <li><span>في الورشة</span><b class="num">${num(s.vehicles_in_workshop)}</b></li>
+        <p class="pick-info muted small" data-pick-info aria-live="polite">اضغط على أي لون أو خانة لعرض تفاصيلها.</p>
+        <ul class="kv three five" data-fleet-place>
+          ${raw(PLACES.map(([k, t]) => html`<li data-k="${k}"><button type="button" class="place-btn" data-pick="${k}"><span><i class="dot pl-${k}"></i>${t}</span><b class="num">${num(place[k])}</b><small class="muted num">${pct(place[k])}</small></button></li>`).join(''))}
         </ul>
       </article>
 
@@ -142,6 +152,17 @@ async function loadBody(body, { companies, sites }) {
         <div class="fmore">${moreRows(Math.min(PAGE_ROWS, follow.length), follow.length)}</div>
       </div>` : html`<div class="empty soft"><p>لا توجد مهام متابعة لهذا الاختيار. كل الوثائق سارية والزيت في موعده.</p></div>`)}
     </section>`;
+  // اختيار لون/خانة: يبرز الجزء نفسه في الشريط والخانة ويعرض العدد والنسبة، والضغط مرة ثانية يلغي الاختيار
+  const fleet = body.querySelector('.panel.fleet');
+  fleet.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pick]'); if (!b) return;
+    const k = b.dataset.pick; const again = fleet.dataset.picked === k;
+    fleet.dataset.picked = again ? '' : k; fleet.classList.toggle('has-pick', !again);
+    fleet.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('on', !again && x.dataset.pick === k));
+    const name = PLACES.find(([x]) => x === k)[1];
+    fleet.querySelector('[data-pick-info]').innerHTML = again ? 'اضغط على أي لون أو خانة لعرض تفاصيلها.'
+      : html`<i class="dot pl-${k}"></i> <b>${name}</b>: <span class="num">${num(place[k])}</span> من <span class="num">${num(placeTotal)}</span> سيارة (<span class="num">${pct(place[k])}</span>)`;
+  });
   body.removeAttribute('aria-busy');
   const pager = { limit: PAGE_ROWS }, tb = $('.followups tbody', body), more = $('.followups .fmore', body);
   if (tb) bindMore(more, pager, () => { tb.innerHTML = followRows(follow.slice(0, pager.limit), siteName, compName); more.innerHTML = String(moreRows(Math.min(pager.limit, follow.length), follow.length)); });
