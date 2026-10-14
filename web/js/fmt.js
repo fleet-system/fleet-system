@@ -76,12 +76,12 @@ export const km = (v) => (v == null ? '—' : `${num(v)} كم`);
 export const LABELS = {
   op_status: { working: 'تعمل', stopped: 'متوقفة', under_maintenance: 'تحت الصيانة', accident_damaged: 'متضررة بحادث' },
   location_status: { inside_site: 'داخل الموقع', outside_site: 'خارج الموقع', in_workshop: 'في الورشة' },
-  doc_type: { iqama: 'الإقامة', driving_license: 'رخصة القيادة', registration: 'الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', insurance: 'التأمين', vehicle_authorization: 'تفويض السيارة' },
+  doc_type: { iqama: 'الإقامة', driving_license: 'رخصة القيادة', registration: 'الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', insurance: 'التأمين', vehicle_authorization: 'تفويض السيارة', delegate_license: 'رخصة المفوّض' },
   doc_status: { valid: 'سارية', expiring: 'اقتربت من الانتهاء', expired: 'منتهية', no_date: 'لا يوجد تاريخ مسجل', missing: 'غير مسجلة', not_authorized: 'غير مفوض' },
   auth_status: { valid: 'ساري', expired: 'منتهٍ', missing: 'غير متوفر', not_authorized: 'غير مفوض', no_date: 'بلا تاريخ', no_driver: 'بلا سائق' },
   oil_status: { not_due: 'لم يحن موعد التغيير', soon: 'اقترب موعد التغيير', due: 'حان موعد التغيير', overdue: 'تجاوز موعد التغيير', no_record: 'لا يوجد سجل' },
   accident_status: { new: 'جديد', awaiting_estimate: 'بانتظار التقدير', awaiting_repair: 'بانتظار الإصلاح', repairing: 'جارٍ الإصلاح', completed: 'مكتمل' },
-  alert_type: { iqama: 'انتهاء الإقامة', driving_license: 'انتهاء رخصة القيادة', registration: 'انتهاء الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', oil_change: 'تغيير الزيت', accident: 'حادث مفتوح', maintenance_request: 'طلب صيانة', insurance: 'انتهاء التأمين', vehicle_authorization: 'انتهاء تفويض السيارة' },
+  alert_type: { iqama: 'انتهاء الإقامة', driving_license: 'انتهاء رخصة القيادة', registration: 'انتهاء الاستمارة', periodic_inspection: 'الفحص الدوري', authorization: 'التفويض', oil_change: 'تغيير الزيت', accident: 'حادث مفتوح', maintenance_request: 'طلب صيانة', insurance: 'انتهاء التأمين', vehicle_authorization: 'انتهاء تفويض السيارة', delegate_license: 'انتهاء رخصة المفوّض' },
   mr_status: { new: 'جديد', pending_supervisor: 'بانتظار اعتماد المشرف', approved: 'معتمد', in_progress: 'قيد الصيانة', completed: 'مكتمل', rejected: 'مرفوض' },
   meter_unit: { km: 'كيلومتر', hours: 'ساعة تشغيل' },
   employee_status: { active: 'على رأس العمل', on_leave: 'في إجازة', terminated: 'منتهي الخدمة', other: 'أخرى' },
@@ -99,6 +99,7 @@ export function statusText(r) {
   if (r.alert_type === 'maintenance_request') return `${label('mr_status', r.status)} منذ ${n(r.days_left)} يوم`;
   if (r.alert_type === 'accident') return `${label('accident_status', r.status)} منذ ${n(r.days_left)} يوم`;
   if (r.alert_type === 'vehicle_authorization' && r.status === 'no_date') return 'يرجى تحديد تاريخ انتهاء التفويض';
+  if (r.alert_type === 'delegate_license' && r.status === 'no_date') return 'يرجى تحديد تاريخ انتهاء رخصة المفوّض';
   if (r.status === 'missing' || r.status === 'no_date' || r.status === 'not_authorized')
     return r.alert_type === 'authorization' ? label('auth_status', r.status) : label('doc_status', r.status);
   if (r.days_left < 0) return `منتهية منذ ${n(r.days_left)} يوم`;
@@ -139,6 +140,20 @@ const ERRORS = [
   [/REQUEST_NOT_ARCHIVED/, 'هذا الطلب موجود في القائمة وليس في سجل المحذوفات.'],
   [/REQUEST_NOT_FOUND/, 'لم يُعثر على طلب الصيانة.'],
   [/RESTORE_CONFIRMATION_REQUIRED/, 'الاستعادة الكاملة تحتاج تأكيداً صريحاً بكتابة كلمة «استبدال».'],
+  [/RENEWAL_PLAN_EXISTS/, 'لهذه السيارة خطة تجديد جارية. افتحها من قائمة الخطط.'],
+  [/RENEWAL_STEP_ORDER/, 'أكمل الخطوات السابقة أولاً؛ الخطوات تُنفَّذ بالترتيب.'],
+  [/RENEWAL_STEP_DONE/, 'هذه الخطوة مكتملة مسبقاً.'],
+  [/RENEWAL_DATE_REQUIRED/, 'اكتب تاريخ الانتهاء الجديد.'],
+  [/RENEWAL_DATE_PAST/, 'تاريخ الانتهاء الجديد يجب ألا يكون قبل اليوم.'],
+  [/RENEWAL_INSPECTION_NOT_PASSED/, 'لا تكتمل خطوة الفحص إلا بنتيجة «اجتاز». سجّل إعادة الفحص عند اجتيازه.'],
+  [/RENEWAL_FINES_REQUIRED/, 'اختر حالة المخالفات والرسوم: لا توجد أو تم السداد.'],
+  [/RENEWAL_NO_DELEGATE/, 'حدّد مفوّض هذه السيارة أولاً.'],
+  [/RENEWAL_PLAN_CLOSED/, 'هذه الخطة مكتملة.'],
+  [/RENEWAL_PLAN_NOT_FOUND|RENEWAL_STEP_NOT_FOUND/, 'لم يُعثر على الخطة.'],
+  [/RENEWAL_VEHICLE_NOT_FOUND/, 'السيارة غير موجودة.'],
+  [/DELEGATE_MERGE_INVALID/, 'لا يمكن دمج هذين المفوّضين.'],
+  [/delegate_private_license_digits/, 'رقم الرخصة يجب أن يكون أرقاماً فقط.'],
+  [/delegate_private_mobile_format/, 'رقم الجوال غير صحيح.'],
   [/vehicle_private|vp_.*_digits/, 'رقم الهوية يجب أن يكون أرقاماً فقط.'],
   [/op_state_other_text/, 'اكتب الحالة التشغيلية عند اختيار «أخرى».'],
   [/row-level security|permission denied|PERMISSION_DENIED/i, 'لا تملك صلاحية تنفيذ هذا الإجراء.'],

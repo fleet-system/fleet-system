@@ -7,6 +7,7 @@ import { openForm, saved, userError } from '../form.js';
 import { companyNames, siteNames, employeeNamesPlain, resolveOwner, resolveSite } from '../resolve.js';
 
 import { fieldLabel, regTypes, extraMakes, opStateLabels, customFields, customFormField, SECTIONS } from '../vehicle-config.js';
+import { delegateList, delegateChange, applyDelegateChange, findDelegate } from './renewal.js';
 
 // ماركات وطرازات شائعة في السوق السعودي — اقتراحات فقط، ويمكن كتابة أي قيمة جديدة
 const MAKES = {
@@ -128,7 +129,10 @@ const localMobile = (m) => (m && /^\+9665\d{8}$/.test(m) ? `0${m.slice(4)}` : m 
 
 // اقتراحات من البيانات المحفوظة
 async function suggestions() {
-  const rows = await api.get('vehicles', { select: 'make,model,registration_type,current_user_name', deleted_at: 'is.null' }).catch(() => []);
+  const [rows, delegates] = await Promise.all([
+    api.get('vehicles', { select: 'make,model,registration_type,current_user_name', deleted_at: 'is.null' }).catch(() => []),
+    delegateList(),
+  ]);
   const makes = uniq([...Object.keys(MAKES), ...extraMakes(), ...rows.map((r) => canonMake(r.make || ''))]);
   const modelsFor = (make) => {
     const k = canonMake(make || '');
@@ -139,6 +143,7 @@ async function suggestions() {
     makes, modelsFor,
     regTypes: uniq([...regTypes(), ...rows.map((r) => r.registration_type)]),
     users: uniq([...employeeNamesPlain(), ...rows.map((r) => r.current_user_name)]),
+    delegates,  // null إذا لم تُحدَّث قاعدة البيانات بعد (لا تظهر حقول المفوّض)
   };
 }
 
@@ -169,6 +174,11 @@ export function vehicleFields({ isNew, sug, costsFromRecords = false }) {
     { name: 'card_auth_expiry', label: 'تاريخ انتهاء التفويض', type: 'date', help: 'من التقويم أو بصيغة YYYY/MM/DD' },
     { name: 'auth_live', type: 'info' },
   ];
+  if (sug.delegates) f.push(
+    { name: 'delegate_name', label: 'المفوّض', type: 'combo', options: sug.delegates.map((d) => d.full_name), help: 'اختر مفوّضاً مسجلاً أو اكتب اسماً جديداً (خطة التجديد)' },
+    { name: 'delegate_license_expiry', label: 'تاريخ انتهاء رخصة المفوّض', type: 'date', help: 'يتحدث في ملف المفوّض وكل سياراته' },
+    { name: 'dlg_live', type: 'info' },
+  );
   if (sens) f.push({ name: 'current_user_id_no', label: 'هوية المستخدم', inputmode: 'numeric', dir: 'ltr', western: true, normalize: idNo, preview: idKind, help: 'رقم الهوية الوطنية أو رقم الإقامة' });
   f.push({ name: 'current_user_mobile', label: 'رقم هاتف السائق', type: 'tel', inputmode: 'tel', dir: 'ltr', western: true, full: true, normalize: saMobile, preview: (m) => `✓ ${localMobile(m)}`, help: 'مثل 0501234567' });
   f.push({ name: 'owner_company', label: 'المالك', type: 'combo', required: true, options: companyNames(), help: 'اختر من القائمة أو اكتب اسماً جديداً' });
@@ -238,6 +248,12 @@ function cardOnChange(sug, recCosts) {
     form.elements.op_state_text.required = other;
     for (const [n, live] of [['registration_expiry', 'reg_live'], ['inspection_expiry', 'insp_live'], ['insurance_expiry', 'ins_live']]) ctx.live(live, docLive(v[n]));
     ctx.live('auth_live', authLive(v.card_auth_status, v.card_auth_expiry));
+    if (sug.delegates && form.elements.delegate_name) {
+      // اختيار مفوّض مسجل يملأ تاريخ رخصته من ملفه
+      if (name === 'delegate_name') { const d = findDelegate(sug.delegates, v.delegate_name); if (d) { ctx.set('delegate_license_expiry', d.license_expiry ? date(d.license_expiry) : ''); v.delegate_license_expiry = d.license_expiry; } }
+      const d = findDelegate(sug.delegates, v.delegate_name);
+      ctx.live('dlg_live', v.delegate_name ? html`${raw(docLive(v.delegate_license_expiry))}${raw(d && d.vehicle_count > 1 ? html`<small class="muted">هذا المفوّض مرتبط بـ ${num(d.vehicle_count)} سيارات؛ تاريخ رخصته واحد في كلها.</small>` : !d ? html`<small class="muted">مفوّض جديد: يُنشأ له ملف عند الحفظ.</small>` : '')}` : '');
+    }
     if (!name || name === 'make') {
       const dl = form.elements.model.list;
       if (dl) dl.innerHTML = sug.modelsFor(form.elements.make.value).map((o) => html`<option value="${o}"></option>`).join('');
@@ -259,6 +275,7 @@ export function vehicleValues(v, { docs = {}, priv = {} } = {}) {
     current_user_mobile: localMobile(v.current_user_mobile),
     registration_expiry: docs.registration?.expiry_date || '', inspection_expiry: docs.periodic_inspection?.expiry_date || '',
     current_user_id_no: priv.current_user_id_no || '', owner_id_no: priv.owner_id_no || '', change_note: '',
+    delegate_name: v.delegate_name || '', delegate_license_expiry: v.delegate_license_expiry || '',
     ...Object.fromEntries(Object.entries(v.custom_fields || {}).map(([k, x]) => [`cf__${k}`, x])),
   };
 }
@@ -329,6 +346,8 @@ export async function vehicleCardForm(v = null, { docs = {}, priv = {}, oil = []
     onChange: cardOnChange(sug, recCosts),
     onSubmit: async (val) => {
       const { rec, docs: d, priv: p } = await vehicleRecord(val, { costsFromRecords: !!recCosts, existingCustom: v?.custom_fields || {} });
+      // المفوّض: يُسأل المستخدم قبل الحفظ إذا كان تاريخ الرخصة سيتحدث في سيارات أخرى
+      const dch = sug.delegates && 'delegate_name' in val ? await delegateChange(val, v, sug.delegates) : null;
       let row;
       if (isNew) {
         rec.oil_interval_km = Number(data.setting('oil_default_interval_km', 10000));
@@ -347,6 +366,7 @@ export async function vehicleCardForm(v = null, { docs = {}, priv = {}, oil = []
       }
       await saveVehicleDocs(row.id, d, docs);
       await saveVehiclePrivate(row.id, p, priv);
+      await applyDelegateChange(row.id, dch, v);
       data.invalidate();
       return row;
     },

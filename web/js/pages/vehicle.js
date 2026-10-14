@@ -13,6 +13,7 @@ import { oilForm, maintForm, accidentForm } from './ops.js';
 import { handoverForm, approveHandover } from './handovers.js';
 import { requestForm, mrTag } from './requests.js';
 import { mountAttachments } from '../attachments.js';
+import { vehicleRenewalInfo, licTag, newPlan, stepName } from './renewal.js';
 
 export const TABS = [
   ['basic', 'البيانات الأساسية'], ['driver', 'السائق ووثائقه'], ['auth', 'الملكية والتفويض'], ['docs', 'الوثائق'],
@@ -54,6 +55,9 @@ export async function renderVehicle(el, id, params) {
   if (!v) { const [a] = await api.get('v_vehicles_archive', { select: '*', id: `eq.${id}` }).catch(() => []); if (a) { v = a; archived = !!a.deleted_at; } }
   // تفويض السيارة في البطاقة (القسم الثالث) يُقرأ من جدول السيارات مباشرة حتى لا يضيع عند التعديل
   if (v) { const [ca] = await api.get('vehicles', { select: 'card_auth_status,card_auth_expiry', id: `eq.${id}` }).catch(() => []); v.card_auth_status = ca?.card_auth_status ?? null; v.card_auth_expiry = ca?.card_auth_expiry ?? null; }
+  // خطة تجديد المركبة والمفوض: المفوّض ورخصته والخطة (null قبل تحديث قاعدة البيانات)
+  const rn = v ? await vehicleRenewalInfo(id) : null;
+  if (v && rn) { v.delegate_id = rn.delegate?.id || null; v.delegate_name = rn.delegate?.full_name || ''; v.delegate_license_expiry = rn.delegate?.license_expiry || null; }
   const sensOk = api.can('view_sensitive');
   const [dDocs, dPriv] = v?.current_driver_id ? await Promise.all([
     api.get('v_document_status', { select: 'doc_type,expiry_date,days_left,status,record_id', owner_type: 'eq.employee', owner_id: `eq.${v.current_driver_id}` }),
@@ -184,6 +188,12 @@ export async function renderVehicle(el, id, params) {
         [L('card_auth_status', 'حالة التفويض'), v.card_auth_status ? AUTH_CHOICES[v.card_auth_status] : null],
         [L('card_auth_expiry', 'تاريخ انتهاء التفويض'), v.card_auth_expiry ? raw(html`<span class="num">${date(v.card_auth_expiry)}</span>`) : null],
         ['حالة انتهاء التفويض', raw((() => { const s = authState(v.card_auth_status, v.card_auth_expiry); return html`<span class="tag t-${s.tag}" data-auth-state="${s.key}">${s.text}</span> <small class="${s.key === 'no_date' || s.key === 'expired' ? 'bad-text' : 'muted'}">${s.note}</small>`; })())],
+        ...(rn ? [
+          [L('delegate_name', 'المفوّض'), rn.delegate ? raw(html`<a href="#/delegates/${rn.delegate.id}" data-delegate-link>${rn.delegate.full_name}</a> <small class="code">${rn.delegate.code}</small>${raw(rn.delegate.vehicle_count > 1 ? html`<br><small class="muted" data-delegate-multi>ℹ️ هذا المفوّض مفوّض على <a href="#/delegates/${rn.delegate.id}">${num(rn.delegate.vehicle_count)} سيارات</a></small>` : '')}`) : null],
+          [L('delegate_license_expiry', 'رخصة المفوّض'), rn.delegate ? raw(html`${raw(rn.delegate.license_expiry ? html`<span class="num">${date(rn.delegate.license_expiry)}</span> ` : '')}${raw(licTag(rn.delegate.license_expiry))}`) : null],
+          ['خطة التجديد', rn.plan ? raw(html`<a href="#/renewal/${rn.plan.id}" data-plan-link>${rn.plan.status === 'completed' ? 'مكتملة ✓' : html`<span class="num">${num(rn.plan.done_count)} من 5</span> · التالي: ${stepName(rn.plan.next_step)}`}</a>`)
+            : raw(api.can('create') && !archived ? '<button class="btn btn-sm" data-act="rn-plan">إنشاء خطة تجديد</button>' : '—')],
+        ] : []),
         [L('current_user_id_no', 'هوية المستخدم'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.current_user_id_no || '—'}</span>`) : hidden],
         [L('current_user_mobile', 'رقم هاتف السائق'), mobileCell()]])}
         ${kv([[L('owner_company', 'المالك'), v.owner_company_name], [L('owner_id_no', 'هوية المالك'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.owner_id_no || '—'}</span>`) : hidden]])}${raw(more(3))}</section>
@@ -279,6 +289,7 @@ export async function renderVehicle(el, id, params) {
       if (s.key === 'no_date') return html`<p class="warn-box auth-alert">${icon('alert')}<span><b>السيارة مفوضة بدون تاريخ انتهاء</b> — يرجى تحديد تاريخ انتهاء التفويض.</span></p>`;
       if (s.key === 'expiring') return html`<p class="warn-box auth-alert">${icon('clock')}<span><b>اقترب انتهاء تفويض السيارة</b> — ينتهي بتاريخ <span class="num">${date(v.card_auth_expiry)}</span> (${s.note.replace(' — اقترب موعد الانتهاء', '')}).</span></p>`;
       return ''; })())}
+    ${raw(!archived && rn?.dups?.length ? html`<p class="warn-box dlg-dup-alert">${icon('alert')}<span><b>تنبيه: المفوّض مكرر</b> — «${rn.delegate.full_name}» مسجّل أكثر من مرة (${[...new Set(rn.dups.map((x) => ({ name: 'نفس الاسم', license: 'نفس رقم الرخصة', mobile: 'نفس الجوال' }[x.reason])))].join('، ')}). <a href="#/delegates/${rn.delegate.id}">اضغط للمراجعة والدمج</a></span></p>` : '')}
     <header class="vhead">
       <div class="vhead-main">
         <div class="plate-big plate">${v.plate_no}</div>
@@ -420,6 +431,7 @@ export async function renderVehicle(el, id, params) {
       if (r) toast(r.fallback ? 'افتح نافذة الطباعة واختر «حفظ PDF».' : `تم تنزيل \u2068${r.name}\u2069`, 'ok');
       return;
     }
+    if (act === 'rn-plan') { await newPlan(id); return; }
     if (act === 'print') { el.classList.add('printing'); window.print(); el.classList.remove('printing'); return; }
 
     if (act === 'edit') {

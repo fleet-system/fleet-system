@@ -46,7 +46,7 @@ with sync_playwright() as p:
     ok([h.split(':')[0] for h in heads] == ['أولاً', 'ثانياً', 'ثالثاً', 'رابعاً', 'خامساً'], f'1. five sections in the requested order ({len(heads)})')
     names = g.evaluate("[...document.querySelectorAll('.modal form [name]')].filter(e => !e.classList.contains('native') && e.type !== 'file' && !e.name.endsWith('__t')).map(e => e.name)")
     want = ['plate_letters', 'plate_digits', 'make', 'model', 'manufacture_year', 'vin', 'registration_type', 'wheels_count',
-            'site_name', 'op_state', 'op_state_text', 'notes', 'current_user_name', 'card_auth_status', 'card_auth_expiry', 'current_user_id_no', 'current_user_mobile', 'owner_company', 'owner_id_no',
+            'site_name', 'op_state', 'op_state_text', 'notes', 'current_user_name', 'card_auth_status', 'card_auth_expiry', 'delegate_name', 'delegate_license_expiry', 'current_user_id_no', 'current_user_mobile', 'owner_company', 'owner_id_no',
             'registration_serial', 'registration_expiry', 'inspection_expiry', 'insurance_expiry', 'cost_oil', 'cost_maint', 'cost_maint_total']
     ok(names == want, f'1. fields in the requested order {names if names != want else ""}')
     subs = g.locator('.modal .form-subsec').all_inner_texts()

@@ -3,6 +3,7 @@ import * as data from '../data.js';
 import { mrTag } from './requests.js';
 import { html, raw } from '../ui.js';
 import { label, km, num, date } from '../fmt.js';
+import { planCard, licTag, normName } from './renewal.js';
 
 export async function renderSearch(el, q) {
   const clean = q.replace(/[(),*%\\]/g, ' ').trim();
@@ -28,8 +29,31 @@ export async function renderSearch(el, q) {
       order: 'request_date.desc', limit: 50,
     }).catch(() => []),
   ]);
+  // خطة تجديد المركبة والمفوض: المفوّضون (بالاسم أو الرقم الداخلي، والرخصة والجوال لصاحب الصلاحية) والخطط
+  const digits = clean.replace(/\D/g, '');
+  const [dlgs, privIds] = await Promise.all([
+    // الأسماء تُطابق بعد توحيد الهمزات والألف المقصورة والتاء المربوطة (أحمد = احمد)
+    api.get('v_delegates', { select: '*', order: 'full_name' }).then((r) => r.filter((d) => normName(d.full_name).includes(normName(clean)) || normName(d.code).includes(normName(clean))).slice(0, 50)).catch(() => []),
+    api.can('view_sensitive') && digits.length >= 4
+      ? api.get('delegate_private', { select: 'delegate_id', or: `(license_no.ilike.*${digits}*,mobile.ilike.*${digits.replace(/^0/, '')}*)` }).then((r) => r.map((x) => x.delegate_id)).catch(() => [])
+      : Promise.resolve([]),
+  ]);
+  const extraIds = privIds.filter((x) => !dlgs.some((d) => d.id === x));
+  if (extraIds.length) dlgs.push(...await api.get('v_delegates', { select: '*', id: `in.(${extraIds.join(',')})` }).catch(() => []));
+  const plans = await api.get('v_renewal_plans', {
+    select: '*', or: `(plate_no.ilike.${like},code.ilike.${like},plan_no.ilike.${like},delegate_name.ilike.${like}${dlgs.length ? `,delegate_id.in.(${dlgs.map((d) => d.id).join(',')})` : ''})`,
+    order: 'created_at.desc', limit: 50,
+  }).catch(() => []);
   el.innerHTML = html`
     <div class="page-head"><h1>نتائج البحث عن «${q}»</h1></div>
+    ${raw(plans.length ? html`<section class="followups" data-search-plans>
+      <header class="sec-head"><h2>خطط تجديد المركبة والمفوض</h2><span class="count num">${num(plans.length)}</span></header>
+      <div class="rn-list">${raw(plans.map(planCard).join(''))}</div></section>` : '')}
+    ${raw(dlgs.length ? html`<section class="followups" data-search-delegates>
+      <header class="sec-head"><h2>المفوّضون</h2><span class="count num">${num(dlgs.length)}</span></header>
+      <div class="rn-list">${raw(dlgs.map((d) => html`<a class="rn-card" href="#/delegates/${d.id}"><span class="rn-card-top"><b>${d.full_name}</b> <small class="code">${d.code}</small></span>
+        <small>الرخصة: ${raw(d.license_expiry ? html`<span class="num">${date(d.license_expiry)}</span> ` : '')}${raw(licTag(d.license_expiry))}</small>
+        <small class="muted">السيارات المرتبطة: <b class="num">${num(d.vehicle_count)}</b></small></a>`).join(''))}</div></section>` : '')}
     <section class="followups">
       <header class="sec-head"><h2>السيارات</h2><span class="count num">${num(vehicles.length)}</span></header>
       ${raw(vehicles.length ? html`<div class="table-wrap"><table class="log">

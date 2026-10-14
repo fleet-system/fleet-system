@@ -26,8 +26,9 @@ import { renderSettings } from './pages/settings.js';
 import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
+import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.16';
+export const VERSION = '1.17';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -36,6 +37,8 @@ export const NAV = [
   { id: 'vehicles',    t: 'السيارات',                  ic: 'car',       phase: 3 },
   { id: 'employees',   t: 'الموظفون',                  ic: 'people',    phase: 3, hidden: true },  // مخفي من القائمة فقط؛ الصفحة والبيانات باقية وتُفتح من ملف السيارة
   { id: 'documents',   t: 'الوثائق والتنبيهات',        ic: 'doc',       phase: 3 },
+  { id: 'renewal',     t: 'خطة تجديد المركبة والمفوض', ic: 'doc',       phase: 3, hidden: true },  // تُفتح من لوحة التحكم ← وثائق السيارات
+  { id: 'delegates',   t: 'المفوّضون',                 ic: 'people',    phase: 3, hidden: true },
   { id: 'oil',         t: 'تغيير الزيت',               ic: 'oil',       phase: 4 },
   { id: 'requests',    t: 'طلب صيانة',                 ic: 'wrench',    phase: 4 },
   { id: 'accidents',   t: 'الحوادث',                   ic: 'alert',     phase: 4 },
@@ -205,6 +208,8 @@ async function route() {
     else if (page === 'vehicles') await (id ? renderVehicle(el, id, params) : renderVehicles(el, params));
     else if (page === 'employees') await (id ? renderEmployee(el, id, params) : renderEmployees(el));
     else if (page === 'documents') await renderDocuments(el);
+    else if (page === 'renewal') await (id ? renderPlan(el, id) : renderRenewalList(el, params));
+    else if (page === 'delegates') await renderDelegates(el, id);
     else if (page === 'oil') await renderOil(el);
     else if (page === 'maintenance') await renderMaintenance(el);
     else if (page === 'requests') await renderRequests(el, id, params);

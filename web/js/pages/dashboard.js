@@ -3,6 +3,7 @@ import { html, raw, icon, $, PAGE_ROWS, moreRows, bindMore } from '../ui.js';
 import { num, money, date, label, todayParts, statusText, toWestern } from '../fmt.js';
 import { backupReminder } from './settings.js';
 import { PLACES, placeOf } from './vehicles.js';
+import { planCard, newPlan } from './renewal.js';
 
 let lookups = null;
 async function getLookups() {
@@ -84,13 +85,16 @@ async function loadBody(body, { companies, sites }) {
   const vfilt = {};
   if (state.company) vfilt.site_company_id = `eq.${state.company}`;
   if (state.site) vfilt.site_id = `eq.${state.site}`;
-  const [s, follow, vrows, vdocRows] = await Promise.all([
+  const [s, follow, vrows, vdocRows, planRows] = await Promise.all([
     api.rpc('dashboard_stats', { p_company: state.company || null, p_site: state.site || null, p_year: state.year, p_month: state.month }),
     api.get('v_followups', { select: '*', ...filt }),
     api.get('v_vehicles_overview', { select: 'id,code,plate_no,op_status,location_status', ...vfilt }).catch(() => null),
     api.get('v_document_status', { select: 'owner_id,doc_type,expiry_date,days_left', owner_type: 'eq.vehicle', doc_type: `in.(${VDOC_TYPES.join(',')})` }).catch(() => null),
+    // خطة تجديد المركبة والمفوض (تظهر داخل بطاقة وثائق السيارات)
+    api.get('v_renewal_plans', { select: '*', status: 'eq.active', order: 'created_at.desc' }).catch(() => null),
   ]);
   const vdocs = vehicleDocs(vrows, vdocRows);
+  if (vdocs) vdocs.plans = planRows && vrows ? planRows.filter((p) => vrows.some((v) => v.id === p.vehicle_id)) : null;
   // توزيع السيارات: داخل/خارج المواقع للسيارات التي تعمل فقط، والمتوقفة والمتضررة والتي في الورشة كلٌّ في خانته (المجموع = إجمالي السيارات)
   const place = vrows ? Object.fromEntries(PLACES.map(([k]) => [k, vrows.filter((v) => placeOf(v) === k).length])) : { inside: s.vehicles_inside, outside: s.vehicles_outside, stopped: s.vehicles_stopped, maintenance: s.vehicles_maintenance, accident: s.vehicles_accident, workshop: s.vehicles_in_workshop };
   const siteName = (id) => sites.find((x) => x.id === id)?.name || '—';
@@ -246,12 +250,28 @@ function vdocsPanel(vd) {
     <ul class="kv three five vdoc-boxes">${raw(PLACES.map(([k, t]) => html`<li data-k="${k}"><button type="button" class="place-btn" data-dpick="${k}">
       <span><i class="dot pl-${k}"></i>${t}</span>
       <b class="num ${vd.box[k].expired.length ? 'bad-text' : ''}">${num(vd.box[k].expired.length)}</b><small class="muted">وثائق منتهية</small>
-      ${raw(vd.box[k].soon.length ? html`<small class="tag t-expiring num">${num(vd.box[k].soon.length)} خلال ${num(SOON_DAYS)} يوماً</small>` : '')}</button></li>`).join(''))}</ul>
+      ${raw(vd.box[k].soon.length ? html`<small class="tag t-expiring num">${num(vd.box[k].soon.length)} خلال ${num(SOON_DAYS)} يوماً</small>` : '')}</button>
+      ${raw(vd.plans ? (() => { const n = vd.plans.filter((p) => placeOf(p) === k).length; return n ? html`<a class="rn-plans-link" href="#/renewal?place=${k}&status=active" data-rn-place="${k}">خطط تجديد: <span class="num">${num(n)}</span></a>` : html`<span class="rn-plans-link zero">خطط تجديد: <span class="num">0</span></span>`; })() : '')}</li>`).join(''))}</ul>
+    ${raw(vd.plans ? renewalSection(vd.plans) : '')}
     <div data-vdocs-list>${raw(vdocsList(vd, ''))}</div>
   </article>`;
 }
+// قسم «خطة تجديد المركبة والمفوض» داخل بطاقة وثائق السيارات
+const RN_SHOW = 5;
+function renewalSection(plans) {
+  return html`<section class="rn-section" data-renewal aria-labelledby="p-renewal">
+    <div class="rn-section-h"><h3 id="p-renewal">خطة تجديد المركبة والمفوض</h3><span class="rn-count num">${num(plans.length)} جارية</span></div>
+    ${raw(plans.length ? html`<div class="rn-list">${raw(plans.slice(0, RN_SHOW).map(planCard).join(''))}</div>
+      ${raw(plans.length > RN_SHOW ? html`<p class="small"><a class="link" href="#/renewal?place=&status=active">عرض كل الخطط (${num(plans.length)})</a></p>` : '')}`
+      : '<p class="muted small">لا توجد خطط تجديد جارية.</p>')}
+    <div class="rn-actions"><a class="btn" href="#/delegates">${icon('people')}<span>المفوّضون</span></a>
+      <a class="btn" href="#/renewal?place=&status=">${icon('doc')}<span>كل الخطط</span></a>
+      ${raw(api.can('create') ? html`<button type="button" class="btn btn-primary" data-act="rn-new">${icon('plus')}<span>خطة جديدة</span></button>` : '')}</div>
+  </section>`;
+}
 function bindVdocs(panel, vd) {
   panel.addEventListener('click', (e) => {
+    if (e.target.closest('[data-act=rn-new]')) { newPlan(); return; }
     const b = e.target.closest('[data-dpick]'); if (!b) return;
     const k = b.dataset.dpick; const again = panel.dataset.picked === k;
     panel.dataset.picked = again ? '' : k; panel.classList.toggle('has-pick', !again);

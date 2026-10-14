@@ -168,12 +168,12 @@ export function renewalHtml(m, { logo = '', preparedBy = '', now = new Date(), p
 // ---------------------------------------------------------------------
 // HTML ← صورة (SVG foreignObject) ← صفحات A4 ← PDF
 // ---------------------------------------------------------------------
-async function dataUrl(path) {
+export async function dataUrl(path) {
   try { const r = await fetch(path); if (!r.ok) return ''; const b = await r.blob(); return await new Promise((res) => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = () => res(''); f.readAsDataURL(b); }); } catch (_) { return ''; }
 }
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('تعذر رسم التقرير')); i.src = src; }); }
 
-async function renderPages(markup) {
+export async function renderPages(markup) {
   const host = document.createElement('div');
   host.style.cssText = `position:fixed;left:-20000px;top:0;width:${PAGE_W}px;pointer-events:none;`;
   // القياس داخل Shadow DOM حتى لا تؤثر أنماط الموقع على تقسيم الصفحات (الرسم النهائي لا يرى أنماط الموقع)
@@ -234,7 +234,7 @@ export function pdfFromJpegs(pages, title = '') {
 }
 
 // بديل عند منع المتصفح لرسم التقرير: نافذة طباعة بنفس التقرير (احفظه PDF من الطباعة)
-function printFallback(markup, name) {
+export function printFallback(markup, name) {
   const w = window.open('', '_blank'); if (!w) throw new Error('اسمح بالنوافذ المنبثقة لعرض التقرير.');
   w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${name.replace(/\.pdf$/, '')}</title><style>@page{size:A4;margin:0}body{margin:0}</style></head><body>${markup}</body></html>`);
   w.document.close(); setTimeout(() => w.print(), 400);
@@ -254,3 +254,4 @@ export async function renewalReport(id, parts = ALL_PARTS) {
   saveBlob(blob, name);
   return { name, pages: pages.length, size: blob.size, plate: d.v.plate_no };
 }
+export { CSS as REPORT_CSS };

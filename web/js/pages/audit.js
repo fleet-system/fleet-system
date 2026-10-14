@@ -4,7 +4,7 @@ import { html, raw, $ } from '../ui.js';
 import { dateTime, parseDate, num, LABELS } from '../fmt.js';
 
 const TABLES = {
-  vehicles: 'السيارات', employees: 'الموظفون', employee_private: 'بيانات الموظف الحساسة', vehicle_private: 'هويات السيارة (حساسة)', documents: 'الوثائق', authorizations: 'التفويضات',
+  vehicles: 'السيارات', delegates: 'المفوّضون', delegate_private: 'بيانات المفوّض الحساسة', renewal_plans: 'خطط التجديد', renewal_steps: 'خطوات التجديد', employees: 'الموظفون', employee_private: 'بيانات الموظف الحساسة', vehicle_private: 'هويات السيارة (حساسة)', documents: 'الوثائق', authorizations: 'التفويضات',
   oil_changes: 'تغيير الزيت', maintenance: 'الصيانة', maintenance_items: 'بنود الصيانة', maintenance_requests: 'طلبات الصيانة', accidents: 'الحوادث', handovers: 'نماذج التسليم',
   housing_maintenance: 'صيانة السكن', food_supplies: 'توريد الطعام', attachments: 'المرفقات', companies: 'الشركات', sites: 'المواقع',
   profiles: 'المستخدمون', user_permissions: 'الصلاحيات', app_settings: 'الإعدادات',
