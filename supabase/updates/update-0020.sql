@@ -94,3 +94,6 @@ begin
 end $$;
 
 select 'RENEWAL_AUTO_COMPLETE_OK' as result;
+
+-- executed together on 2026/10/14 at the owner's request: admin display name
+update profiles set full_name = U&'\0639\0628\062F \0627\0644\0631\062D\0645\0646 \0627\0644\0634\0645\064A\0631\064A' where is_admin and email = 'abdama700@gmail.com';
