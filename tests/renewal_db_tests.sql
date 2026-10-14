@@ -31,7 +31,9 @@ select rtst.ok((select authorized_name from vehicles where id = 'b0000000-0000-0
 select rtst.ok((select vehicle_count from v_delegates limit 1) = 2, 'delegate linked to two vehicles without repeating data');
 select rtst.ok(exists (select 1 from v_document_status where doc_type = 'delegate_license' and owner_id = 'b0000000-0000-0000-0000-000000000001' and status = 'no_date'), 'delegate licence appears in alerts (no date)');
 
--- plan
+-- plan (vehicle 1: documents expired, so its steps wait for the user)
+update documents set expiry_date = app_today() - 5 where vehicle_id = 'b0000000-0000-0000-0000-000000000001' and doc_type in ('periodic_inspection', 'registration');
+update vehicles set insurance_expiry = app_today() - 5 where id = 'b0000000-0000-0000-0000-000000000001';
 select rtst.ok(create_renewal_plan('b0000000-0000-0000-0000-000000000001') is not null, 'plan created');
 select rtst.ok((select count(*) from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000001') = 5, 'plan has five steps');
 select rtst.fails($$select create_renewal_plan('b0000000-0000-0000-0000-000000000001')$$, 'RENEWAL_PLAN_EXISTS', 'only one active plan per vehicle');
@@ -70,7 +72,15 @@ select create_renewal_plan('b0000000-0000-0000-0000-000000000002');
 update delegates set license_expiry = app_today() + 800;
 select rtst.ok((select s.status from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000002' and s.step_no = 1) = 'done', 'licence renewal applies to every vehicle of the delegate');
 
--- duplicates and merge
+-- automatic completion: valid documents (more than 30 days) complete their steps; fines stay manual
+update vehicles set insurance_expiry = app_today() + 200 where id = 'b0000000-0000-0000-0000-000000000003';
+insert into documents(doc_type, vehicle_id, expiry_date) values ('registration', 'b0000000-0000-0000-0000-000000000003', app_today() + 300), ('periodic_inspection', 'b0000000-0000-0000-0000-000000000003', app_today() + 10);
+select create_renewal_plan('b0000000-0000-0000-0000-000000000003');
+select rtst.ok((select string_agg(s.step_no || ':' || s.status || ':' || coalesce(s.source, ''), ',' order by s.step_no) from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000003')
+  = '1:pending:,2:pending:,3:done:auto,4:pending:,5:done:auto', 'valid insurance and registration complete automatically; inspection within 30 days and fines do not');
+update vehicles set delegate_id = (select id from delegates order by created_at limit 1) where id = 'b0000000-0000-0000-0000-000000000003';
+select rtst.ok((select s.status || ':' || s.source from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000003' and s.step_no = 1) = 'done:auto', 'linking a delegate with a valid licence completes step 1');
+select rtst.ok(refresh_renewal_plan((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003')) = 0, 'refresh is safe to repeat');
 insert into delegates(full_name) values (U&'\0627\062D\0645\062F \0639\0644\064A ');
 select rtst.ok(exists (select 1 from jsonb_array_elements(delegate_duplicates()) x where x->>'reason' = 'name'), 'duplicate delegate detected');
 select merge_delegates((select id from delegates where code = 'DLG-0001'), (select id from delegates where code = 'DLG-0002'));
@@ -79,7 +89,7 @@ select rtst.ok((select count(*) from delegates) = 2 and (select count(*) from de
 
 -- archive (no hard delete)
 select archive_renewal_plan((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000002'), 'test');
-select rtst.ok((select count(*) from renewal_plans) = 2 and not exists (select 1 from v_renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000002'), 'archived plan kept but hidden');
+select rtst.ok((select count(*) from renewal_plans) = 3 and not exists (select 1 from v_renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000002'), 'archived plan kept but hidden');
 select rtst.fails($$delete from renewal_plans$$, 'permission denied', 'plans cannot be deleted');
 select rtst.fails($$update renewal_steps set status = 'done'$$, 'permission denied', 'steps change only through the functions');
 
@@ -88,7 +98,7 @@ set request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
 select rtst.fails($$select create_renewal_plan('b0000000-0000-0000-0000-000000000003')$$, 'PERMISSION_DENIED', 'view-only user cannot create a plan');
 select rtst.fails(format($$select save_renewal_step(%L, 1, '{}', true)$$, gen_random_uuid()), 'PERMISSION_DENIED', 'view-only user cannot confirm steps');
 select rtst.ok((select count(*) from delegate_private) = 0, 'view-only user sees no licence numbers or mobiles');
-select rtst.ok((select count(*) from v_renewal_plans) = 1, 'view-only user can read plans');
+select rtst.ok((select count(*) from v_renewal_plans) = 2, 'view-only user can read plans');
 reset role;
 select rtst.ok(not has_function_privilege('anon', 'public.create_renewal_plan(uuid, text)', 'execute'), 'visitors cannot call the plan functions');
 select rtst.ok('delegates' = any(backup_table_list()) and 'renewal_steps' = any(backup_table_list()), 'new tables included in backups');

@@ -18,7 +18,7 @@ const STEP_DOC = { 1: 'delegate_license', 2: 'periodic_inspection', 3: 'insuranc
 const DOC_NAME = { delegate_license: 'رخصة المفوّض', periodic_inspection: 'الفحص الدوري', insurance: 'التأمين', registration: 'الاستمارة' };
 const RESULT = { passed: 'اجتاز', failed: 'لم يجتز' };
 const FINES = { none: 'لا توجد مخالفات أو رسوم', paid: 'تم السداد' };
-const SOURCE = { plan: '', card: 'تم التحديث من بطاقة السيارة', delegate: 'تم التحديث من ملف المفوّض' };
+const SOURCE = { plan: '', card: 'تم التحديث من بطاقة السيارة', delegate: 'تم التحديث من ملف المفوّض', auto: 'اكتملت تلقائياً لأن التاريخ الحالي ساري' };
 const placeName = (k) => PLACES.find(([x]) => x === k)?.[1] || '';
 
 // نفس مطابقة الأسماء في قاعدة البيانات (الهمزات، الألف المقصورة، التاء المربوطة، المسافات، التشكيل)
@@ -111,6 +111,8 @@ export async function renderRenewalList(el, params) {
 // خطة سيارة واحدة
 // ---------------------------------------------------------------------
 export async function renderPlan(el, id) {
+  // الخطوات التي تاريخها الحالي ساري (أكثر من 30 يوماً) تكتمل تلقائياً
+  if (api.can('edit') || api.can('create')) await api.rpc('refresh_renewal_plan', { p_plan: id }).catch(() => null);
   const [[p], steps] = await Promise.all([
     api.get('v_renewal_plans', { select: '*', id: `eq.${id}` }),
     api.get('v_renewal_steps', { select: '*', plan_id: `eq.${id}`, order: 'step_no' }),
@@ -154,7 +156,8 @@ export async function renderPlan(el, id) {
         ${raw(s.step_no === 1 ? html`<small>المفوّض: ${raw(p.delegate_id ? html`<a href="#/delegates/${p.delegate_id}">${p.delegate_name}</a>` : '<b class="bad-text">لم يُحدد</b>')}</small>` : '')}
         ${raw(s.status !== 'done' ? curInfo(s) : '')}
         ${raw(detail(s) ? html`<div class="rn-detail">${raw(detail(s))}</div>` : '')}
-        ${raw(s.status === 'done' ? html`<small class="muted">أكّدها ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span>${SOURCE[s.source] ? ` · ${SOURCE[s.source]}` : ''}</small>`
+        ${raw(s.status === 'done' ? (s.source === 'auto' ? html`<small class="muted" data-auto>✓ ${SOURCE.auto} · <span class="num">${dateTime(s.confirmed_at)}</span></small>`
+          : html`<small class="muted">أكّدها ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span>${SOURCE[s.source] ? ` · ${SOURCE[s.source]}` : ''}</small>`)
           : s.status === 'entered' ? html`<small class="muted">سجّلها ${s.entered_by_name || '—'} في <span class="num">${dateTime(s.entered_at)}</span> — لم تُؤكَّد بعد</small>` : '')}
         ${raw(open ? html`<div class="btn-row">
           ${raw(s.step_no === 1 && !p.delegate_id && canEdit ? '<button class="btn btn-sm" data-act="set-delegate">تحديد المفوّض</button>' : '')}

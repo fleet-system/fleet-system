@@ -28,7 +28,7 @@ import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.20';
+export const VERSION = '1.21';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
