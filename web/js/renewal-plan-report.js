@@ -12,7 +12,7 @@ const NR = 'غير مسجل';
 const ST = { done: 'مكتملة', entered: 'بانتظار التأكيد', pending: 'لم تبدأ' };
 const RESULT = { passed: 'اجتاز', failed: 'لم يجتز' };
 const FINES = { none: 'لا توجد مخالفات أو رسوم', paid: 'تم السداد' };
-const SRC = { plan: 'من الخطة', card: 'من بطاقة السيارة', delegate: 'من ملف المفوّض', auto: 'تلقائياً: التاريخ ساري' };
+const SRC = { plan: 'من الخطة', card: 'من بطاقة السيارة', delegate: 'من ملف المفوّض', auto: 'تلقائياً: التاريخ ساري', skip: 'تم التجاوز' };
 const CSS2 = `.bad{color:#b3261e;font-weight:700}.wrn{color:#9a6b12;font-weight:700}.nx{color:#9a6b12;font-size:11px}
 td,th{font-size:12px}
 .st-done{color:#1f5c3a;font-weight:700}.st-entered{color:#9a6b12;font-weight:700}.st-pending{color:#5d6b62}
@@ -65,7 +65,7 @@ export async function planReport(id) {
     <div class="rb"><h2>الخطوات بالترتيب</h2><table>
       <tr><th>#</th><th>الخطوة</th><th>حالة الخطوة</th><th>تاريخ الانتهاء الحالي</th><th>حالة الوثيقة</th><th>بيانات الخطوة</th><th>التأكيد</th></tr>
       ${raw(steps.map((s) => { const c = current(s.step_no); return html`<tr><td>${num(s.step_no)}</td><td>${STEPS.find(([n]) => n === s.step_no)?.[2]}${raw(p.status === 'active' && s.step_no === p.next_step ? ' <b class="nx">⚠ التالية</b>' : '')}</td>
-        <td class="st-${s.status}">${ST[s.status]}</td>
+        <td class="st-${s.status}">${s.source === 'skip' ? 'متجاوزة' : ST[s.status]}</td>
         <td class="${c.date === NR ? 'nr' : ''}">${c.date}</td>
         <td class="${c.bad ? 'bad' : c.warn ? 'wrn' : ''}">${c.state}</td>
         <td>${[s.new_expiry ? `الجديد: ${date(s.new_expiry)}` : '', s.result ? `النتيجة: ${RESULT[s.result]}` : '', s.fines_status ? FINES[s.fines_status] : '', s.notes || ''].filter(Boolean).join(' · ') || '—'}</td>

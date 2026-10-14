@@ -96,6 +96,8 @@ select rtst.fails($$update renewal_steps set status = 'done'$$, 'permission deni
 -- plan note (internal)
 select rtst.ok(set_renewal_plan_note((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003'), '  test note  ') = 'test note', 'note saved on the plan');
 select rtst.ok((select notes from v_renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003') = 'test note', 'note visible with the plan');
+-- skip the delegate step (step 1 only)
+select rtst.fails(format($$select skip_renewal_step(%L, 2, 'x')$$, (select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003')), 'RENEWAL_SKIP_NOT_ALLOWED', 'only the delegate step can be skipped');
 -- view-only user
 set request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
 select rtst.fails($$select create_renewal_plan('b0000000-0000-0000-0000-000000000003')$$, 'PERMISSION_DENIED', 'view-only user cannot create a plan');

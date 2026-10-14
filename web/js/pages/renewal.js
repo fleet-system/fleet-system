@@ -149,7 +149,7 @@ export async function renderPlan(el, id) {
     const isNext = next && s.id === next.id;
     const open = p.status === 'active' && s.status !== 'done';
     const cls = s.status === 'done' ? 'done' : isNext ? 'next' : 'open';
-    const badge = s.status === 'done' ? html`<span class="tag t-valid">مكتملة</span>`
+    const badge = s.status === 'done' ? (s.source === 'skip' ? html`<span class="tag t-no_date" data-skipped>متجاوزة</span>` : html`<span class="tag t-valid">مكتملة</span>`)
       : html`${raw(isNext ? '<span class="tag rn-next-tag" data-next-alert>⚠️ الخطوة التالية</span>' : '')}${raw(s.status === 'entered' ? '<span class="tag t-expiring">بانتظار التأكيد</span>' : !isNext ? '<span class="tag t-no_date">لم تبدأ</span>' : '')}`;
     return html`<li class="rn-step ${cls}" data-step="${s.step_no}">
       <span class="rn-num">${s.status === 'done' ? '✓' : isNext ? '!' : num(s.step_no)}</span>
@@ -159,13 +159,14 @@ export async function renderPlan(el, id) {
         ${raw(s.step_no === 1 ? html`<small>المفوّض: ${raw(p.delegate_id ? html`<a href="#/delegates/${p.delegate_id}">${p.delegate_name}</a>` : '<b class="bad-text">لم يُحدد</b>')}</small>` : '')}
         ${raw(s.status !== 'done' ? curInfo(s) : '')}
         ${raw(detail(s) ? html`<div class="rn-detail">${raw(detail(s))}</div>` : '')}
-        ${raw(s.status === 'done' ? (s.source === 'auto' ? html`<small class="muted" data-auto>✓ ${SOURCE.auto} · <span class="num">${dateTime(s.confirmed_at)}</span></small>`
+        ${raw(s.status === 'done' ? (s.source === 'skip' ? html`<small class="muted">⤼ تم تجاوز التفويض بواسطة ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span></small>` : s.source === 'auto' ? html`<small class="muted" data-auto>✓ ${SOURCE.auto} · <span class="num">${dateTime(s.confirmed_at)}</span></small>`
           : html`<small class="muted">أكّدها ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span>${SOURCE[s.source] ? ` · ${SOURCE[s.source]}` : ''}</small>`)
           : s.status === 'entered' ? html`<small class="muted">سجّلها ${s.entered_by_name || '—'} في <span class="num">${dateTime(s.entered_at)}</span> — لم تُؤكَّد بعد</small>` : '')}
         ${raw(open ? html`<div class="btn-row">
           ${raw(s.step_no === 1 && !p.delegate_id && canEdit ? '<button class="btn btn-sm" data-act="set-delegate">تحديد المفوّض</button>' : '')}
           ${raw(canSave ? `<button class="btn btn-sm" data-act="save" data-step="${s.step_no}">تسجيل البيانات</button>` : '')}
-          ${raw(canEdit ? `<button class="btn btn-sm ${isNext ? 'btn-primary' : ''}" data-act="confirm" data-step="${s.step_no}">تأكيد إكمال الخطوة</button>` : '')}</div>` : '')}
+          ${raw(canEdit ? `<button class="btn btn-sm ${isNext ? 'btn-primary' : ''}" data-act="confirm" data-step="${s.step_no}">تأكيد إكمال الخطوة</button>` : '')}
+          ${raw(s.step_no === 1 && canEdit ? '<button class="btn btn-sm btn-ghost" data-act="skip" data-step="1">تجاوز التفويض</button>' : '')}</div>` : '')}
       </div></li>`;
   };
 
@@ -254,6 +255,19 @@ export async function renderPlan(el, id) {
         onSubmit: (val) => api.rpc('set_renewal_plan_note', { p_plan: id, p_note: val.note || null }).then(() => true),
       });
       if (r) { saved('حُفظت الملاحظة'); reload(); }
+    }
+    if (act === 'skip') {
+      const r = await openForm({
+        title: 'تجاوز التفويض', draft: false, submitText: 'تجاوز الخطوة',
+        intro: 'تُعتبر خطوة «تجديد رخصة قيادة المفوّض» منتهية دون تجديد (مثلاً: السيارة لا تحتاج مفوّضاً). يُحفظ من تجاوزها ومتى والسبب. التجاوز متاح لهذه الخطوة فقط.',
+        fields: [{ name: 'reason', label: 'سبب التجاوز (اختياري)', type: 'textarea', full: true }],
+        onSubmit: (val) => api.rpc('skip_renewal_step', { p_plan: id, p_step: 1, p_reason: val.reason || null }).then(() => true),
+      });
+      if (r) {
+        const [after] = await api.get('v_renewal_plans', { select: 'status', id: `eq.${id}` });
+        if (after?.status === 'completed') toast(`اكتملت خطة تجديد السيارة ${p.plate_no} ✓`, 'ok'); else saved('تم تجاوز التفويض');
+        reload();
+      }
     }
     if (act === 'set-delegate') { if (await setVehicleDelegate(p.vehicle_id, p.delegate_name)) reload(); }
     if (act === 'pdf') {
