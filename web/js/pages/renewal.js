@@ -18,6 +18,11 @@ export const stepName = (n) => STEPS.find(([k]) => k === n)?.[2] || '';
 const STEP_DOC = { 1: 'delegate_license', 2: 'periodic_inspection', 3: 'insurance', 5: 'registration' };
 const DOC_NAME = { delegate_license: 'رخصة المفوّض', periodic_inspection: 'الفحص الدوري', insurance: 'التأمين', registration: 'الاستمارة' };
 const RESULT = { passed: 'اجتاز', failed: 'لم يجتز' };
+// الخطوات التي يمكن تجاوزها
+const SKIP = {
+  1: { btn: 'تجاوز التفويض', done: 'تم تجاوز التفويض', intro: 'تُعتبر خطوة «تجديد رخصة قيادة المفوّض» منتهية دون تجديد (مثلاً: السيارة لا تحتاج مفوّضاً).' },
+  4: { btn: 'تجاوز المخالفات والرسوم', done: 'تم تجاوز المخالفات والرسوم', intro: 'تُعتبر خطوة «سداد المخالفات والرسوم» منتهية دون تسجيل سداد.' },
+};
 const FINES = { none: 'لا توجد مخالفات أو رسوم', paid: 'تم السداد' };
 const SOURCE = { plan: '', card: 'تم التحديث من بطاقة السيارة', delegate: 'تم التحديث من ملف المفوّض', auto: 'اكتملت تلقائياً لأن التاريخ الحالي ساري' };
 const placeName = (k) => PLACES.find(([x]) => x === k)?.[1] || '';
@@ -159,14 +164,14 @@ export async function renderPlan(el, id) {
         ${raw(s.step_no === 1 ? html`<small>المفوّض: ${raw(p.delegate_id ? html`<a href="#/delegates/${p.delegate_id}">${p.delegate_name}</a>` : '<b class="bad-text">لم يُحدد</b>')}</small>` : '')}
         ${raw(s.status !== 'done' ? curInfo(s) : '')}
         ${raw(detail(s) ? html`<div class="rn-detail">${raw(detail(s))}</div>` : '')}
-        ${raw(s.status === 'done' ? (s.source === 'skip' ? html`<small class="muted">⤼ تم تجاوز التفويض بواسطة ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span></small>` : s.source === 'auto' ? html`<small class="muted" data-auto>✓ ${SOURCE.auto} · <span class="num">${dateTime(s.confirmed_at)}</span></small>`
+        ${raw(s.status === 'done' ? (s.source === 'skip' ? html`<small class="muted">⤼ ${SKIP[s.step_no]?.done || 'تم تجاوز الخطوة'} بواسطة ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span></small>` : s.source === 'auto' ? html`<small class="muted" data-auto>✓ ${SOURCE.auto} · <span class="num">${dateTime(s.confirmed_at)}</span></small>`
           : html`<small class="muted">أكّدها ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span>${SOURCE[s.source] ? ` · ${SOURCE[s.source]}` : ''}</small>`)
           : s.status === 'entered' ? html`<small class="muted">سجّلها ${s.entered_by_name || '—'} في <span class="num">${dateTime(s.entered_at)}</span> — لم تُؤكَّد بعد</small>` : '')}
         ${raw(open ? html`<div class="btn-row">
           ${raw(s.step_no === 1 && !p.delegate_id && canEdit ? '<button class="btn btn-sm" data-act="set-delegate">تحديد المفوّض</button>' : '')}
           ${raw(canSave ? `<button class="btn btn-sm" data-act="save" data-step="${s.step_no}">تسجيل البيانات</button>` : '')}
           ${raw(canEdit ? `<button class="btn btn-sm ${isNext ? 'btn-primary' : ''}" data-act="confirm" data-step="${s.step_no}">تأكيد إكمال الخطوة</button>` : '')}
-          ${raw(s.step_no === 1 && canEdit ? '<button class="btn btn-sm btn-ghost" data-act="skip" data-step="1">تجاوز التفويض</button>' : '')}</div>` : '')}
+          ${raw(SKIP[s.step_no] && canEdit ? `<button class="btn btn-sm btn-ghost" data-act="skip" data-step="${s.step_no}">${SKIP[s.step_no].btn}</button>` : '')}</div>` : '')}
       </div></li>`;
   };
 
@@ -257,15 +262,16 @@ export async function renderPlan(el, id) {
       if (r) { saved('حُفظت الملاحظة'); reload(); }
     }
     if (act === 'skip') {
+      const n = Number(b.dataset.step), sk = SKIP[n]; if (!sk) return;
       const r = await openForm({
-        title: 'تجاوز التفويض', draft: false, submitText: 'تجاوز الخطوة',
-        intro: 'تُعتبر خطوة «تجديد رخصة قيادة المفوّض» منتهية دون تجديد (مثلاً: السيارة لا تحتاج مفوّضاً). يُحفظ من تجاوزها ومتى والسبب. التجاوز متاح لهذه الخطوة فقط.',
+        title: sk.btn, draft: false, submitText: 'تجاوز الخطوة',
+        intro: `${sk.intro} يُحفظ من تجاوزها ومتى والسبب. التجاوز متاح لخطوتي التفويض والمخالفات فقط.`,
         fields: [{ name: 'reason', label: 'سبب التجاوز (اختياري)', type: 'textarea', full: true }],
-        onSubmit: (val) => api.rpc('skip_renewal_step', { p_plan: id, p_step: 1, p_reason: val.reason || null }).then(() => true),
+        onSubmit: (val) => api.rpc('skip_renewal_step', { p_plan: id, p_step: n, p_reason: val.reason || null }).then(() => true),
       });
       if (r) {
         const [after] = await api.get('v_renewal_plans', { select: 'status', id: `eq.${id}` });
-        if (after?.status === 'completed') toast(`اكتملت خطة تجديد السيارة ${p.plate_no} ✓`, 'ok'); else saved('تم تجاوز التفويض');
+        if (after?.status === 'completed') toast(`اكتملت خطة تجديد السيارة ${p.plate_no} ✓`, 'ok'); else saved(sk.done);
         reload();
       }
     }
