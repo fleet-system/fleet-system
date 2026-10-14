@@ -32,7 +32,12 @@ def open_vehicle(g, vid, tab='basic'):
 def edit(g, vid):
     open_vehicle(g, vid); g.click('[data-panel=basic] [data-act=edit]'); g.wait_for_selector('.modal [name=plate_letters]'); g.wait_for_timeout(200)
 def save(g):
-    g.click('.modal [data-save]'); g.wait_for_selector('.modal', state='detached', timeout=30000); g.wait_for_selector('.vhead')
+    g.click('.modal [data-save]'); g.wait_for_timeout(500)
+    # v1.22: a date outside the usual renewal period shows a warning first -> «حفظ على أي حال»
+    if g.locator('.modal [data-yes]').count() and 'تنبيه قبل الحفظ' in g.inner_text('.modal:last-of-type'): g.click('.modal [data-yes]')
+    try: g.wait_for_selector('.modal', state='detached', timeout=30000)
+    except Exception: print('DEBUG MODAL', g.locator('.modal').all_inner_texts()); raise
+    g.wait_for_selector('.vhead')
 def basic(g): return g.inner_text('[data-panel=basic]')
 
 with sync_playwright() as p:

@@ -41,7 +41,9 @@ export async function planReport(id) {
     const st = docState(iso);
     return { date: iso ? date(iso) : NR, state: iso ? (st.key === "expired" ? st.daysText : `${DOC_ST[st.key]} · ${st.daysText}`) : NR, bad: st.key === 'expired' || !iso, warn: st.key === 'expiring' };
   };
-  const name = reportFileName(p.plate_no).replace('تقرير-تجديد-المركبة-', 'خطة-تجديد-المركبة-والمفوض-');
+  // اسم الملف = رقم لوحة السيارة كما هو في النظام (مثل «ح ك و UKJ 2377.pdf»)
+  const plateName = String(p.plate_no || '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() || reportFileName(p.plate_no).replace(/\.pdf$/, '');
+  const name = `${plateName}.pdf`;
   const op = cardStateOf(p);
   const row = (k, x) => html`<tr><td class="k">${k}</td><td class="${x === NR ? 'nr' : ''}">${x}</td></tr>`;
   const logo = await dataUrl('logo-mark.png') || await dataUrl('logo.png');

@@ -906,3 +906,8 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .rn-next-tag { background: var(--warn-bg); color: #7A4E0E; border: 1px solid var(--warn); }
 .rn-alert { display: flex; align-items: center; gap: 6px; margin: 2px 0; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: #7A4E0E; font-size: .88rem; font-weight: 600; }
 .rn-head .tag + .tag { margin-inline-start: 6px; }
+.chk-list { margin: 6px 0; padding-inline-start: 18px; display: grid; gap: 6px; }
+.rn-note { background: var(--panel); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; display: grid; gap: 6px; border: 1px dashed var(--line); }
+.rn-note-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rn-note p { margin: 0; }
+.rn-note-mini { color: var(--ink); background: #FFF8E6; border-radius: 8px; padding: 4px 8px; font-size: .8rem; }

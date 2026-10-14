@@ -81,7 +81,9 @@ with sync_playwright() as p:
     before = boxes(g) if False else None
     g.goto(f'{BASE}#/vehicles/{V[1]}?tab=basic&r=1'); g.wait_for_selector('.vhead'); g.click('[data-panel=basic] [data-act=edit]'); g.wait_for_selector('.modal [name=insurance_expiry]')
     g.fill('.modal [name=insurance_expiry]', _d(5)); g.locator('.modal [name=insurance_expiry]').dispatch_event('input')
-    g.click('.modal [data-save]'); g.wait_for_selector('.modal', state='detached', timeout=30000); g.wait_for_timeout(400)
+    g.click('.modal [data-save]'); g.wait_for_timeout(500)
+    if g.locator('.modal [data-yes]').count(): g.click('.modal [data-yes]')  # v1.22: 5 days is not a normal insurance period -> «حفظ على أي حال»
+    g.wait_for_selector('.modal', state='detached', timeout=30000); g.wait_for_timeout(400)
     dash(g); exp2, _ = expected(); got2 = boxes(g)
     ok(got2 == exp2 and got2['inside'] == exp['inside'] - 1, f'renewing the insurance in the card removes it from «منتهية» {got2}')
     ok(chart(g) == chart_exp(), 'chart follows the card change')

@@ -5,6 +5,7 @@ import { html, raw, icon, toast } from '../ui.js';
 import { date, dateTime, num, saMobile, saMobileLocal } from '../fmt.js';
 import { openForm, confirmBox, userError, saved } from '../form.js';
 import { PLACES, placeOf, opChip, docState } from './vehicles.js';
+import { dateWarnings, confirmWarnings } from '../renewal-checks.js';
 
 export const STEPS = [
   [1, 'delegate_license', 'تجديد رخصة قيادة المفوّض'],
@@ -43,6 +44,7 @@ export function planCard(p) {
     ${raw(progress(p))}
     <small class="rn-next"><span class="num">${num(p.done_count)} من 5</span> · ${raw(nextText(p))}</small>
     ${raw(p.delegate_name ? html`<small class="muted">المفوّض: ${p.delegate_name}</small>` : '')}
+    ${raw(p.notes ? html`<small class="rn-note-mini">📝 ${String(p.notes).length > 70 ? `${String(p.notes).slice(0, 70)}…` : p.notes}</small>` : '')}
   </a>`;
 }
 
@@ -118,9 +120,10 @@ export async function renderPlan(el, id) {
     api.get('v_renewal_steps', { select: '*', plan_id: `eq.${id}`, order: 'step_no' }),
   ]);
   if (!p) { el.innerHTML = html`<div class="empty"><h1>الخطة غير موجودة</h1><a class="btn btn-primary" href="#/renewal">قائمة الخطط</a></div>`; return; }
-  const [docs, [dl]] = await Promise.all([
+  const [docs, [dl], [vrow]] = await Promise.all([
     api.get('v_document_status', { select: 'doc_type,expiry_date,days_left,status', owner_type: 'eq.vehicle', owner_id: `eq.${p.vehicle_id}`, doc_type: 'in.(delegate_license,periodic_inspection,insurance,registration)' }),
     p.delegate_id ? api.get('v_delegates', { select: '*', id: `eq.${p.delegate_id}` }) : Promise.resolve([]),
+    api.get('vehicles', { select: 'manufacture_year', id: `eq.${p.vehicle_id}` }).catch(() => []),
   ]);
   document.title = `خطة تجديد ${p.plate_no} — نظام إدارة الأسطول`;
   const doc = (t) => docs.find((d) => d.doc_type === t);
@@ -181,6 +184,12 @@ export async function renderPlan(el, id) {
       <div class="rn-prog"><div class="rn-prog-h"><span>التقدّم</span><b class="num">${num(p.done_count)} من 5</b></div>${raw(progress(p))}
         ${raw(next ? html`<p class="rn-nextline">الخطوة التالية: <b>${stepName(next.step_no)}</b></p>` : '')}</div>
     </section>
+    <section class="rn-note" data-plan-note>
+      <div class="rn-note-h"><b>📝 ملاحظة على خطة هذه السيارة</b>
+        ${raw(canSave && p.status === 'active' ? html`<button class="btn btn-sm" data-act="note">${p.notes ? 'تعديل الملاحظة' : 'كتابة ملاحظة'}</button>` : '')}</div>
+      ${raw(p.notes ? html`<p class="pre">${p.notes}</p>` : '<p class="muted small">لا توجد ملاحظة.</p>')}
+      <small class="muted">الملاحظة للاستخدام الداخلي ولا تظهر في تقرير PDF.</small>
+    </section>
     <ol class="rn-steps">${raw(steps.map(stepHtml).join(''))}</ol>
     <p class="muted small center">النظام للمتابعة والتسجيل فقط، ولا ينفّذ أي إجراء حكومي. تأكيد الخطوة يحدّث التاريخ في بطاقة السيارة وملف المفوّض.</p>`;
 
@@ -204,6 +213,18 @@ export async function renderPlan(el, id) {
         if (confirm && s.step_no === 2 && val.result !== 'passed') throw userError('لا تكتمل خطوة الفحص إلا بنتيجة «اجتاز». احفظ النتيجة الحالية بزر «تسجيل البيانات».');
         if (confirm && s.step_no === 1 && val.new_expiry && dl && dl.vehicle_count > 1 && val.new_expiry !== dl.license_expiry
           && !(await confirmBox(`هذا المفوّض مرتبط بـ ${num(dl.vehicle_count)} سيارات، سيتحدث تاريخ رخصته فيها كلها. متابعة؟`, { title: 'تحديث رخصة المفوّض', okText: 'متابعة' }))) throw userError('لم تُؤكَّد الخطوة.');
+        // فحص التاريخ حسب المدد النظامية (تنبيه لا يمنع الحفظ)
+        const kind = { 1: 'license', 2: 'inspection', 3: 'insurance', 5: 'registration' }[s.step_no];
+        if (kind) {
+          const valid = (t) => (doc(t)?.days_left ?? -1) >= 0;
+          const stepDone = (n) => steps.some((x) => x.step_no === n && x.status === 'done');
+          const prereq = confirm && s.step_no === 5 ? [
+            { ok: valid('periodic_inspection') || stepDone(2), text: 'تجديد الاستمارة يشترط فحصاً دورياً سارياً، والفحص الحالي غير ساري.' },
+            { ok: valid('insurance') || stepDone(3), text: 'تجديد الاستمارة يشترط تأميناً سارياً، والتأمين الحالي غير ساري.' },
+            { ok: stepDone(4), text: 'تجديد الاستمارة يشترط سداد المخالفات والرسوم، وخطوة المخالفات لم تُؤكَّد بعد.' },
+          ] : [];
+          await confirmWarnings(dateWarnings(kind, val.new_expiry, { current: d?.expiry_date || null, manufactureYear: vrow?.manufacture_year, prereq }));
+        }
         const body = { new_expiry: val.new_expiry || null, result: val.result || null, fines_status: val.fines_status || null, notes: val.notes || null };
         return api.rpc('save_renewal_step', { p_plan: p.id, p_step: s.step_no, p_data: body, p_confirm: confirm });
       },
@@ -223,6 +244,16 @@ export async function renderPlan(el, id) {
         else saved(`اكتملت الخطوة: ${stepName(st.step_no)}`);
       } else saved('حُفظت البيانات — بانتظار التأكيد');
       data.invalidate(); reload();
+    }
+    if (act === 'note') {
+      const r = await openForm({
+        title: `ملاحظة خطة ${p.plate_no}`, draft: false, submitText: 'حفظ الملاحظة',
+        intro: 'ملاحظة داخلية على خطة هذه السيارة، تظهر هنا وفي لوحة التحكم، ولا تظهر في تقرير PDF.',
+        fields: [{ name: 'note', label: 'الملاحظة', type: 'textarea', rows: 5, full: true, help: 'اتركها فارغة لإزالة الملاحظة' }],
+        values: { note: p.notes || '' },
+        onSubmit: (val) => api.rpc('set_renewal_plan_note', { p_plan: id, p_note: val.note || null }).then(() => true),
+      });
+      if (r) { saved('حُفظت الملاحظة'); reload(); }
     }
     if (act === 'set-delegate') { if (await setVehicleDelegate(p.vehicle_id, p.delegate_name)) reload(); }
     if (act === 'pdf') {
@@ -285,6 +316,7 @@ async function delegateForm(d = null) {
         const ex = (await api.get('v_delegates', { select: 'id,full_name,code' })).find((x) => normName(x.full_name) === normName(name));
         if (ex && await confirmBox(`يوجد مفوّض بنفس الاسم: ${ex.full_name} (${ex.code}). هل تريد فتح ملفه بدلاً من إنشاء ملف مكرر؟`, { title: 'مفوّض مسجل', okText: 'فتح الملف الموجود', cancelText: 'إنشاء ملف جديد' })) return { id: ex.id };
       }
+      if (val.license_expiry && val.license_expiry !== (d?.license_expiry || null)) await confirmWarnings(dateWarnings('license', val.license_expiry, { current: d?.license_expiry || null }));
       if (d && val.license_expiry !== d.license_expiry && d.vehicle_count > 1
         && !(await confirmBox(`هذا المفوّض مرتبط بـ ${num(d.vehicle_count)} سيارات، سيتحدث تاريخ رخصته فيها كلها. متابعة؟`, { title: 'تحديث رخصة المفوّض', okText: 'متابعة' }))) throw userError('لم يُحفظ التعديل.');
       const rec = { full_name: name, license_expiry: val.license_expiry || null, notes: val.notes || null };
@@ -434,6 +466,7 @@ export async function delegateChange(val, v, list) {
   const exp = val.delegate_license_expiry || null;
   if (!name) return { name: '', exp: null, existing: null };
   const existing = findDelegate(list, name);
+  if (exp && exp !== (existing?.license_expiry || null)) await confirmWarnings(dateWarnings('license', exp, { current: existing?.license_expiry || null }));
   if (existing && exp && exp !== existing.license_expiry) {
     const others = existing.vehicle_count - (v && v.delegate_id === existing.id ? 1 : 0);
     if (others > 0 && !(await confirmBox(`هذا المفوّض مرتبط بـ ${num(existing.vehicle_count + (v && v.delegate_id === existing.id ? 0 : 1))} سيارات، سيتحدث تاريخ رخصته فيها كلها. متابعة؟`, { title: 'تحديث رخصة المفوّض', okText: 'متابعة' }))) {

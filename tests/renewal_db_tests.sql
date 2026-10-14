@@ -93,11 +93,15 @@ select rtst.ok((select count(*) from renewal_plans) = 3 and not exists (select 1
 select rtst.fails($$delete from renewal_plans$$, 'permission denied', 'plans cannot be deleted');
 select rtst.fails($$update renewal_steps set status = 'done'$$, 'permission denied', 'steps change only through the functions');
 
+-- plan note (internal)
+select rtst.ok(set_renewal_plan_note((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003'), '  test note  ') = 'test note', 'note saved on the plan');
+select rtst.ok((select notes from v_renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003') = 'test note', 'note visible with the plan');
 -- view-only user
 set request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
 select rtst.fails($$select create_renewal_plan('b0000000-0000-0000-0000-000000000003')$$, 'PERMISSION_DENIED', 'view-only user cannot create a plan');
 select rtst.fails(format($$select save_renewal_step(%L, 1, '{}', true)$$, gen_random_uuid()), 'PERMISSION_DENIED', 'view-only user cannot confirm steps');
 select rtst.ok((select count(*) from delegate_private) = 0, 'view-only user sees no licence numbers or mobiles');
+select rtst.fails($$select set_renewal_plan_note(gen_random_uuid(), 'x')$$, 'PERMISSION_DENIED', 'view-only user cannot write notes');
 select rtst.ok((select count(*) from v_renewal_plans) = 2, 'view-only user can read plans');
 reset role;
 select rtst.ok(not has_function_privilege('anon', 'public.create_renewal_plan(uuid, text)', 'execute'), 'visitors cannot call the plan functions');

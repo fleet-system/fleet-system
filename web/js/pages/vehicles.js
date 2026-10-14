@@ -8,6 +8,7 @@ import { companyNames, siteNames, employeeNamesPlain, resolveOwner, resolveSite 
 
 import { fieldLabel, regTypes, extraMakes, opStateLabels, customFields, customFormField, SECTIONS } from '../vehicle-config.js';
 import { delegateList, delegateChange, applyDelegateChange, findDelegate } from './renewal.js';
+import { dateWarnings, confirmWarnings } from '../renewal-checks.js';
 
 // ماركات وطرازات شائعة في السوق السعودي — اقتراحات فقط، ويمكن كتابة أي قيمة جديدة
 const MAKES = {
@@ -347,6 +348,14 @@ export async function vehicleCardForm(v = null, { docs = {}, priv = {}, oil = []
     onSubmit: async (val) => {
       const { rec, docs: d, priv: p } = await vehicleRecord(val, { costsFromRecords: !!recCosts, existingCustom: v?.custom_fields || {} });
       // المفوّض: يُسأل المستخدم قبل الحفظ إذا كان تاريخ الرخصة سيتحدث في سيارات أخرى
+      // تواريخ التجديد التي تغيّرت في البطاقة: تنبيه إذا بدت خاطئة (حسب المدد النظامية)
+      if (!isNew) {
+        const warn = [];
+        for (const [kind, nv, cur] of [['registration', val.registration_expiry, docs.registration?.expiry_date], ['inspection', val.inspection_expiry, docs.periodic_inspection?.expiry_date], ['insurance', val.insurance_expiry, v.insurance_expiry]]) {
+          if (nv && nv !== (cur || null)) warn.push(...dateWarnings(kind, nv, { current: cur || null, manufactureYear: kind === 'inspection' ? val.manufacture_year : null }));
+        }
+        await confirmWarnings(warn);
+      }
       const dch = sug.delegates && 'delegate_name' in val ? await delegateChange(val, v, sug.delegates) : null;
       let row;
       if (isNew) {
