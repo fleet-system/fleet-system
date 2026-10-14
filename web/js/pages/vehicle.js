@@ -185,6 +185,7 @@ export async function renderVehicle(el, id, params) {
         [L('site_name', 'المشروع الحالي'), v.site_name], [L('op_state', 'الحالة التشغيلية'), raw(opChip(v))], [L('notes', 'ملاحظة'), v.notes ? raw(html`<span class="pre">${v.notes}</span>`) : null]])}${raw(more(2))}</section>
       <section class="vcard-sec"><h3>ثالثاً: المسؤولية والمالكون</h3>${kv([
         [L('current_user_name', 'المستخدم الحالي'), v.current_user_name],
+        ...cf(3),  // الحقول الإضافية للقسم الثالث تظهر أسفل المستخدم الحالي مباشرة (مثل «المفوض الأساسي»)
         [L('card_auth_status', 'حالة التفويض'), v.card_auth_status ? AUTH_CHOICES[v.card_auth_status] : null],
         [L('card_auth_expiry', 'تاريخ انتهاء التفويض'), v.card_auth_expiry ? raw(html`<span class="num">${date(v.card_auth_expiry)}</span>`) : null],
         ['حالة انتهاء التفويض', raw((() => { const s = authState(v.card_auth_status, v.card_auth_expiry); return html`<span class="tag t-${s.tag}" data-auth-state="${s.key}">${s.text}</span> <small class="${s.key === 'no_date' || s.key === 'expired' ? 'bad-text' : 'muted'}">${s.note}</small>`; })())],
@@ -196,7 +197,7 @@ export async function renderVehicle(el, id, params) {
         ] : []),
         [L('current_user_id_no', 'هوية المستخدم'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.current_user_id_no || '—'}</span>`) : hidden],
         [L('current_user_mobile', 'رقم هاتف السائق'), mobileCell()]])}
-        ${kv([[L('owner_company', 'المالك'), v.owner_company_name], [L('owner_id_no', 'هوية المالك'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.owner_id_no || '—'}</span>`) : hidden]])}${raw(more(3))}</section>
+        ${kv([[L('owner_company', 'المالك'), v.owner_company_name], [L('owner_id_no', 'هوية المالك'), sensOk ? raw(html`<span class="num" dir="ltr">${vPriv.owner_id_no || '—'}</span>`) : hidden]])}</section>
       <section class="vcard-sec"><h3>رابعاً: التراخيص والمستندات</h3>
         <h4>أ. رخصة السير والاستمارة</h4>${kv(docRows(cur('registration')?.expiry_date, [[L('registration_serial', 'الرقم التسلسلي للاستمارة'), v.registration_serial]]))}
         <h4>ب. الفحص الدوري</h4>${kv(docRows(cur('periodic_inspection')?.expiry_date))}

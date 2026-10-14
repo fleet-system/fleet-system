@@ -214,7 +214,8 @@ export function vehicleFields({ isNew, sug, costsFromRecords = false }) {
     if (!add.length) continue;
     const end = n < secIdx.length ? secIdx[n] : f.length;
     // في القسم الخامس نضع الحقول قبل مربع الإجمالي
-    const at = n === 5 ? f.findIndex((x) => x.name === 'cost_live') : end;
+    // وفي القسم الثالث أسفل «المستخدم الحالي» مباشرة
+    const at = n === 5 ? f.findIndex((x) => x.name === 'cost_live') : n === 3 ? f.findIndex((x) => x.name === 'current_user_name') + 1 || end : end;
     f.splice(at < 0 ? end : at, 0, ...add);
   }
   const more = extra.filter((c) => !(Number(c.section) >= 1 && Number(c.section) <= 5)).map(customFormField);
