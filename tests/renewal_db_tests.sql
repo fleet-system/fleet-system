@@ -36,7 +36,7 @@ select rtst.ok(create_renewal_plan('b0000000-0000-0000-0000-000000000001') is no
 select rtst.ok((select count(*) from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000001') = 5, 'plan has five steps');
 select rtst.fails($$select create_renewal_plan('b0000000-0000-0000-0000-000000000001')$$, 'RENEWAL_PLAN_EXISTS', 'only one active plan per vehicle');
 select rtst.ok((select next_step from v_renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000001') = 1, 'next step is 1');
-select rtst.fails(format($$select save_renewal_step(%L, 3, '{"new_expiry":"2030-01-01"}', true)$$, (select id from renewal_plans limit 1)), 'RENEWAL_STEP_ORDER', 'steps must be completed in order');
+select rtst.ok((save_renewal_step((select id from renewal_plans limit 1), 4, '{"notes":"early"}', false))->>'status' = 'entered', 'steps are open: a later step can be recorded first');
 select rtst.fails(format($$select save_renewal_step(%L, 1, '{}', true)$$, (select id from renewal_plans limit 1)), 'RENEWAL_DATE_REQUIRED', 'licence step needs a valid date');
 
 -- saving without confirming: waiting for confirmation, not complete

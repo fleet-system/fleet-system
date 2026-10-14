@@ -899,3 +899,10 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .rn-row-btn { flex: none; font: inherit; font-size: .78rem; font-weight: 600; padding: 6px 10px; min-height: 34px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: 1px solid var(--palm); background: #E3F0E6; color: var(--palm); text-decoration: none; cursor: pointer; }
 .rn-row-btn.add { background: var(--panel); }
 .rn-for { font-size: .8rem; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+/* 1.19: كل الخطوات مفتوحة، وعلامة تنبيه على الخطوة التالية */
+.rn-step.open { opacity: 1; }
+.rn-step.next { border: 2px solid var(--warn); background: #FFFBF2; }
+.rn-step.next .rn-num { background: var(--warn); color: #fff; }
+.rn-next-tag { background: var(--warn-bg); color: #7A4E0E; border: 1px solid var(--warn); }
+.rn-alert { display: flex; align-items: center; gap: 6px; margin: 2px 0; padding: 6px 10px; border-radius: 8px; background: var(--warn-bg); color: #7A4E0E; font-size: .88rem; font-weight: 600; }
+.rn-head .tag + .tag { margin-inline-start: 6px; }

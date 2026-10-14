@@ -140,26 +140,26 @@ export async function renderPlan(el, id) {
     s.notes ? html`ملاحظة: ${s.notes}` : '',
   ].filter(Boolean).map((x) => html`<span>${raw(x)}</span>`).join('');
   const stepHtml = (s) => {
+    // كل الخطوات مفتوحة؛ الخطوة التالية (أول خطوة غير مكتملة بالترتيب) عليها علامة تنبيه
     const isNext = next && s.id === next.id;
-    const locked = p.status === 'active' && !isNext && s.status !== 'done';
-    const cls = s.status === 'done' ? 'done' : isNext ? 'next' : 'locked';
+    const open = p.status === 'active' && s.status !== 'done';
+    const cls = s.status === 'done' ? 'done' : isNext ? 'next' : 'open';
     const badge = s.status === 'done' ? html`<span class="tag t-valid">مكتملة</span>`
-      : isNext ? (s.status === 'entered' ? html`<span class="tag t-expiring">بانتظار التأكيد</span>` : html`<span class="tag rn-next-tag">الخطوة التالية</span>`)
-        : html`<span class="tag t-no_date">مقفلة</span>`;
+      : html`${raw(isNext ? '<span class="tag rn-next-tag" data-next-alert>⚠️ الخطوة التالية</span>' : '')}${raw(s.status === 'entered' ? '<span class="tag t-expiring">بانتظار التأكيد</span>' : !isNext ? '<span class="tag t-no_date">لم تبدأ</span>' : '')}`;
     return html`<li class="rn-step ${cls}" data-step="${s.step_no}">
-      <span class="rn-num">${s.status === 'done' ? '✓' : num(s.step_no)}</span>
+      <span class="rn-num">${s.status === 'done' ? '✓' : isNext ? '!' : num(s.step_no)}</span>
       <div class="rn-body">
         <div class="rn-head"><b>${num(s.step_no)}. ${stepName(s.step_no)}</b>${raw(badge)}</div>
+        ${raw(isNext ? html`<p class="rn-alert" role="note">${icon('alert')}<span>تنبيه: هذه الخطوة التالية حسب الترتيب.</span></p>` : '')}
         ${raw(s.step_no === 1 ? html`<small>المفوّض: ${raw(p.delegate_id ? html`<a href="#/delegates/${p.delegate_id}">${p.delegate_name}</a>` : '<b class="bad-text">لم يُحدد</b>')}</small>` : '')}
         ${raw(s.status !== 'done' ? curInfo(s) : '')}
         ${raw(detail(s) ? html`<div class="rn-detail">${raw(detail(s))}</div>` : '')}
         ${raw(s.status === 'done' ? html`<small class="muted">أكّدها ${s.confirmed_by_name || '—'} في <span class="num">${dateTime(s.confirmed_at)}</span>${SOURCE[s.source] ? ` · ${SOURCE[s.source]}` : ''}</small>`
           : s.status === 'entered' ? html`<small class="muted">سجّلها ${s.entered_by_name || '—'} في <span class="num">${dateTime(s.entered_at)}</span> — لم تُؤكَّد بعد</small>` : '')}
-        ${raw(locked ? '<small class="muted">تبدأ بعد إكمال الخطوة السابقة.</small>' : '')}
-        ${raw(isNext ? html`<div class="btn-row">
+        ${raw(open ? html`<div class="btn-row">
           ${raw(s.step_no === 1 && !p.delegate_id && canEdit ? '<button class="btn btn-sm" data-act="set-delegate">تحديد المفوّض</button>' : '')}
-          ${raw(canSave ? '<button class="btn btn-sm" data-act="save">تسجيل البيانات</button>' : '')}
-          ${raw(canEdit ? '<button class="btn btn-sm btn-primary" data-act="confirm">تأكيد إكمال الخطوة</button>' : '')}</div>` : '')}
+          ${raw(canSave ? `<button class="btn btn-sm" data-act="save" data-step="${s.step_no}">تسجيل البيانات</button>` : '')}
+          ${raw(canEdit ? `<button class="btn btn-sm ${isNext ? 'btn-primary' : ''}" data-act="confirm" data-step="${s.step_no}">تأكيد إكمال الخطوة</button>` : '')}</div>` : '')}
       </div></li>`;
   };
 
@@ -211,12 +211,13 @@ export async function renderPlan(el, id) {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act;
     if (act === 'save' || act === 'confirm') {
-      const r = await stepForm(next, act === 'confirm');
+      const st = steps.find((x) => x.step_no === Number(b.dataset.step)); if (!st) return;
+      const r = await stepForm(st, act === 'confirm');
       if (!r) return;
       if (act === 'confirm') {
         const [after] = await api.get('v_renewal_plans', { select: 'status', id: `eq.${id}` });
         if (after?.status === 'completed') toast(`اكتملت خطة تجديد السيارة ${p.plate_no} ✓`, 'ok');
-        else saved(`اكتملت الخطوة: ${stepName(next.step_no)}`);
+        else saved(`اكتملت الخطوة: ${stepName(st.step_no)}`);
       } else saved('حُفظت البيانات — بانتظار التأكيد');
       data.invalidate(); reload();
     }
