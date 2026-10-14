@@ -129,7 +129,7 @@ async function request(method, path, { query, body, prefer } = {}) {
 // بترتيب ثابت (مع مفتاح فريد لكسر التعادل) حتى لا تنقص الإجماليات بصمت عند كبر البيانات.
 const PAGE = 1000;
 const UNIQUE_KEY = {
-  profiles: 'user_id', user_permissions: 'user_id,permission', app_settings: 'key', employee_private: 'employee_id', vehicle_private: 'vehicle_id',
+  profiles: 'user_id', user_permissions: 'user_id,permission', app_settings: 'key', employee_private: 'employee_id', vehicle_private: 'vehicle_id', delegate_private: 'delegate_id',
   v_document_status: 'owner_type,owner_id,doc_type', v_expenses: 'category,record_id', v_followups: 'subject_type,subject_id,alert_type',
   v_vehicle_oil_status: 'vehicle_id', v_vehicle_authorization: 'vehicle_id',
 };

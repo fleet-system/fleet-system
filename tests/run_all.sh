@@ -16,7 +16,7 @@ n=$(psql -d fleet_ui -X -f renewal_db_tests.sql 2>&1 | tee "$OUT/renewal_db.log"
 note "renewal plan rules (renewal_db_tests.sql): PASS $n, FAIL $err"
 for tz in UTC America/New_York Asia/Riyadh Pacific/Kiritimati; do note "$(TZ=$tz node unit_js.mjs | head -1)"; done
 
-for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo ui_request_archive ui_vehicle_auth ui_excel_link ui_vehicle_owners ui_dashboard_status ui_dashboard_docs ui_renewal_pdf ui_renewal_plan robust_ui; do
+for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo ui_request_archive ui_vehicle_auth ui_excel_link ui_vehicle_owners ui_dashboard_status ui_dashboard_docs ui_renewal_pdf ui_renewal_plan ui_excel_renewal robust_ui; do
   bash reset_ui_db.sh >/dev/null
   python3 -I $t.py "$OUT/$t" > "$OUT/$t.log" 2>&1
   s=$(grep -E '^PASS [0-9]+ FAIL [0-9]+' "$OUT/$t.log" | tail -1); [ -z "$s" ] && s=$(grep -E '^(PASS|PASSED|ALL UI CHECKS PASSED)' "$OUT/$t.log" | head -1)

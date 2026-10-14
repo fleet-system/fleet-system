@@ -7,19 +7,39 @@ import { customFields } from './vehicle-config.js';
 const yn = (b) => (b ? 'نعم' : 'لا');
 const pay = (k) => label('payment_status', k);
 
+// خطة التجديد: أسماء الخطوات وحالة كل خطوة (نص واحد في خلية)
+const RENEWAL_STEPS = { 1: 'رخصة المفوّض', 2: 'الفحص الدوري', 3: 'التأمين', 4: 'المخالفات والرسوم', 5: 'الاستمارة' };
+const localDay = (t) => { if (!t) return null; const d = new Date(t); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+const ymd = (iso) => String(iso).slice(0, 10).replace(/-/g, '/');
+function stepText(s) {
+  if (!s) return '';
+  if (s.status === 'done') {
+    if (s.source === 'skip') return 'متجاوزة';
+    const how = { auto: ' (تلقائي)', card: ' (من البطاقة)', delegate: ' (من ملف المفوّض)' }[s.source] || '';
+    const extra = s.new_expiry ? ` - حتى ${ymd(s.new_expiry)}` : s.fines_status === 'none' ? ' - لا توجد مخالفات' : s.fines_status === 'paid' ? ' - تم السداد' : '';
+    return `مكتملة${how}${extra}`;
+  }
+  return s.status === 'entered' ? 'بانتظار التأكيد' : 'لم تبدأ';
+}
+
 export const EXPORTS = [
   {
     key: 'vehicles', title: 'السيارات', importable: true,
     async load() {
-      const [rows, docs, priv] = await Promise.all([
+      const [rows, docs, priv, links, dlgs] = await Promise.all([
         api.get('v_vehicles_overview', { select: '*', order: 'code' }),
         api.get('v_document_status', { select: 'owner_id,doc_type,expiry_date,status', owner_type: 'eq.vehicle' }),
         api.can('view_sensitive') ? api.get('vehicle_private', { select: 'vehicle_id,owner_id_no,current_user_id_no' }).catch(() => []) : Promise.resolve([]),
+        // المفوّض (ملف المفوّض) من جدول السيارات مباشرة
+        api.get('vehicles', { select: 'id,delegate_id', deleted_at: 'is.null' }).catch(() => []),
+        api.get('v_delegates', { select: 'id,code,license_expiry' }).catch(() => []),
       ]);
       const d = (id, t) => docs.find((x) => x.owner_id === id && x.doc_type === t);
       const pv = (id) => priv.find((x) => x.vehicle_id === id) || {};
+      const dl = (id) => dlgs.find((x) => x.id === links.find((l) => l.id === id)?.delegate_id) || {};
       return rows.map((r) => ({ ...r, reg: d(r.id, 'registration')?.expiry_date || null, insp: d(r.id, 'periodic_inspection')?.expiry_date || null,
-        ins_status: d(r.id, 'insurance')?.status || null, owner_id_no: pv(r.id).owner_id_no || null }));
+        ins_status: d(r.id, 'insurance')?.status || null, owner_id_no: pv(r.id).owner_id_no || null,
+        dlg_code: dl(r.id).code || null, dlg_lic: dl(r.id).license_expiry || null }));
     },
     columns: () => [
       { header: 'الرقم الداخلي', type: 'text', width: 12, value: (r) => r.code },
@@ -42,6 +62,8 @@ export const EXPORTS = [
       { header: 'المستخدم الحالي', type: 'text', value: (r) => r.current_user_name },
       { header: 'جوال المستخدم', type: 'text', value: (r) => r.current_user_mobile },
       { header: 'المفوّض بالقيادة', type: 'text', value: (r) => r.authorized_name },
+      { header: 'ملف المفوّض', type: 'text', width: 11, value: (r) => r.dlg_code },
+      { header: 'انتهاء رخصة المفوّض', type: 'date', value: (r) => r.dlg_lic },
       { header: 'حالة التفويض', type: 'text', value: (r) => label('auth_status', r.authorization_status) },
       { header: 'موقع السيارة', type: 'text', value: (r) => label('location_status', r.location_status) },
       { header: 'الحالة التشغيلية', type: 'text', value: (r) => label('op_status', r.op_status) },
@@ -106,6 +128,59 @@ export const EXPORTS = [
       { header: 'الحالة', type: 'text', value: (r) => (r.doc_type === 'authorization' ? label('auth_status', r.status) : label('doc_status', r.status)) },
       { header: 'الموقع', type: 'text', value: (r) => (r.site_id ? data.siteName(r.site_id) : '') },
       { header: 'الشركة', type: 'text', width: 26, value: (r) => (r.company_id ? data.companyName(r.company_id) : '') },
+    ],
+  },
+  {
+    key: 'delegates', title: 'المفوّضون',
+    async load() {
+      const sens = api.can('view_sensitive');
+      const [rows, cars, priv] = await Promise.all([
+        api.get('v_delegates', { select: '*', order: 'code' }),
+        api.get('vehicles', { select: 'code,plate_no,delegate_id', deleted_at: 'is.null', order: 'code' }),
+        sens ? api.get('delegate_private', { select: '*' }).catch(() => []) : Promise.resolve([]),
+      ]);
+      return rows.map((r) => ({ ...r, ...(priv.find((p) => p.delegate_id === r.id) || {}),
+        cars: cars.filter((c) => c.delegate_id === r.id).map((c) => `${c.plate_no} (${c.code})`).join('، ') }));
+    },
+    columns: () => [
+      { header: 'رقم الملف', type: 'text', width: 11, value: (r) => r.code },
+      { header: 'اسم المفوّض', type: 'text', width: 30, value: (r) => r.full_name },
+      ...(api.can('view_sensitive') ? [
+        { header: 'رقم الرخصة / الهوية', type: 'text', value: (r) => r.license_no },
+        { header: 'الجوال', type: 'text', value: (r) => r.mobile },
+      ] : []),
+      { header: 'انتهاء رخصة القيادة', type: 'date', value: (r) => r.license_expiry },
+      { header: 'الأيام المتبقية', type: 'int', value: (r) => r.license_days_left },
+      { header: 'حالة الرخصة', type: 'text', value: (r) => label('doc_status', r.license_status) },
+      { header: 'عدد السيارات', type: 'int', width: 10, value: (r) => r.vehicle_count },
+      { header: 'السيارات', type: 'wrap', width: 40, value: (r) => r.cars },
+      { header: 'ملاحظات', type: 'wrap', value: (r) => r.notes },
+    ],
+  },
+  {
+    key: 'renewal', title: 'خطط التجديد',
+    async load() {
+      const [plans, steps] = await Promise.all([
+        api.get('v_renewal_plans', { select: '*', order: 'plan_no' }),
+        api.get('v_renewal_steps', { select: '*' }),
+      ]);
+      return plans.map((p) => ({ ...p, steps: Object.fromEntries(steps.filter((s) => s.plan_id === p.id).map((s) => [s.step_no, s])) }));
+    },
+    columns: () => [
+      { header: 'رقم الخطة', type: 'text', width: 12, value: (r) => r.plan_no },
+      { header: 'الرقم الداخلي', type: 'text', width: 12, value: (r) => r.code },
+      { header: 'رقم اللوحة', type: 'text', value: (r) => r.plate_no },
+      { header: 'موقع السيارة', type: 'text', value: (r) => label('location_status', r.location_status) },
+      { header: 'الحالة التشغيلية', type: 'text', value: (r) => (r.op_state === 'other' && r.op_state_text ? r.op_state_text : label('op_status', r.op_status)) },
+      { header: 'المفوّض', type: 'text', width: 26, value: (r) => r.delegate_name },
+      { header: 'انتهاء رخصة المفوّض', type: 'date', value: (r) => r.delegate_license_expiry },
+      { header: 'حالة الخطة', type: 'text', value: (r) => (r.status === 'completed' ? 'مكتملة' : 'جارية') },
+      { header: 'المكتمل من 5', type: 'int', width: 10, value: (r) => r.done_count },
+      { header: 'الخطوة التالية', type: 'text', width: 26, value: (r) => (r.status === 'completed' ? '' : RENEWAL_STEPS[r.next_step] || '') },
+      ...[1, 2, 3, 4, 5].map((n) => ({ header: RENEWAL_STEPS[n], type: 'text', width: 22, value: (r) => stepText(r.steps[n]) })),
+      { header: 'ملاحظة الخطة', type: 'wrap', width: 36, value: (r) => r.notes },
+      { header: 'تاريخ الإنشاء', type: 'date', value: (r) => localDay(r.created_at) },
+      { header: 'تاريخ الاكتمال', type: 'date', value: (r) => localDay(r.completed_at) },
     ],
   },
   {

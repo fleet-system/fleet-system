@@ -37,7 +37,7 @@ with sync_playwright() as p:
 
     # ======================= EXPORT =======================
     pg.goto(BASE + '#/excel'); pg.wait_for_selector('.exp-grid')
-    ok(pg.locator('.exp-grid [data-exp]').count() == 11, 'excel page offers 11 export buttons + all')
+    ok(pg.locator('.exp-grid [data-exp]').count() == 13, 'excel page offers 13 export buttons + all')
     pg.screenshot(path=f'{OUT}/p7-excel.png', full_page=True)
     path, fname = download(pg, '[data-exp=vehicles]', 'vehicles.xlsx')
     ok(fname.endswith('.xlsx') and 'السيارات' in fname, f'vehicles export file name ({fname})')
@@ -69,7 +69,7 @@ with sync_playwright() as p:
 
     path_a, _ = download(pg, '[data-exp=all]', 'all.xlsx')
     wa = openpyxl.load_workbook(path_a)
-    ok(len(wa.sheetnames) == 12 and all(wa[s].sheet_view.rightToLeft for s in wa.sheetnames), f'«all» export: 12 RTL sheets ({len(wa.sheetnames)})')
+    ok(len(wa.sheetnames) == 14 and all(wa[s].sheet_view.rightToLeft for s in wa.sheetnames), f'«all» export: 14 RTL sheets ({len(wa.sheetnames)})')
     acc = wa['الحوادث']; ah = headers(acc); c = acc.cell(2, [i for i, x in enumerate(ah) if 'تاريخ' in (x or '')][0] + 1)
     ok(isinstance(c.value, datetime.datetime) and 'hh:mm' in c.number_format, f'accident date-time cell ({c.number_format})')
     ok('آخر' in pg.inner_text('[data-exp-msg]') or 'تم التصدير' in pg.inner_text('[data-exp-msg]'), 'export confirmation message')
