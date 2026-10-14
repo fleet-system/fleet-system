@@ -126,6 +126,23 @@ with sync_playwright() as p:
     go(g, '#/dashboard', '[data-renewal]')
     outside = g.locator('[data-vdocs] .vdoc-boxes li[data-k=outside] .rn-plans-link').inner_text()
     ok('1' in outside, f'plan counted under the status of its vehicle (outside: {outside})')
+    # clicking a status box shows its plans right there; a vehicle row opens or creates its plan directly
+    g.click('[data-vdocs] [data-dpick=outside]'); g.wait_for_timeout(300)
+    ok(g.locator(f'[data-renewal] [data-plan="{sql(chr(32).join(["select id from renewal_plans where vehicle_id =", repr(V[2]), "and deleted_at is null"]))}"]').count() == 1 and 'خارج المواقع' in g.inner_text('[data-renewal] h3'), 'status box shows its plans directly in the section')
+    g.click('[data-vdocs] [data-dpick=inside]'); g.wait_for_timeout(300)
+    ok(g.locator('[data-renewal] .rn-card').count() == 0 and 'داخل المواقع' in g.inner_text('[data-renewal]'), 'box without active plans says so')
+    g.click('[data-vdocs] .vdoc-boxes li[data-k=outside] [data-rn-place]'); g.wait_for_timeout(300)
+    ok(g.locator('[data-vdocs] [data-dpick=outside].on').count() == 1 and g.url.endswith('dashboard') or '#/dashboard' in g.url, 'plans count link filters in place (no page change)')
+    for k in ['inside', 'stopped', 'maintenance', 'accident', 'workshop']:
+        if g.locator('[data-vdocs] [data-dpick].on').count(): g.click('[data-vdocs] [data-dpick].on'); g.wait_for_timeout(200)
+        g.click(f'[data-vdocs] [data-dpick={k}]'); g.wait_for_timeout(300)
+        if g.locator('[data-vdocs-list] [data-rn-create]').count(): break
+    rows_create = g.locator('[data-vdocs-list] [data-rn-create]')
+    if rows_create.count():
+        vid = rows_create.first.get_attribute('data-rn-create'); rows_create.first.click(); g.wait_for_selector('.rn-steps')
+        ok(sql(f"select count(*) from renewal_plans where vehicle_id = '{vid}' and deleted_at is null") == '1', '«+ خطة» beside a vehicle creates its plan and opens it')
+    else:
+        ok(g.locator('[data-vdocs-list] [data-rn-open]').count() >= 1, 'vehicle rows link straight to their plans')
     c.close()
     c, g = new_ctx(b, 390, 844); login(g)
     for h, sel, n in [('#/dashboard', '[data-renewal]', '02-dashboard-phone'), (f'#/renewal/{plan_id}', '.rn-steps', '03-plan-phone'), ('#/delegates', '.rn-list', '04-delegates-phone')]:

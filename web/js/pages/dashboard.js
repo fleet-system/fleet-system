@@ -1,6 +1,7 @@
 import * as api from '../api.js';
 import { html, raw, icon, $, PAGE_ROWS, moreRows, bindMore } from '../ui.js';
-import { num, money, date, label, todayParts, statusText, toWestern } from '../fmt.js';
+import { num, money, date, label, todayParts, statusText, toWestern, errorText } from '../fmt.js';
+import { toast } from '../ui.js';
 import { backupReminder } from './settings.js';
 import { PLACES, placeOf } from './vehicles.js';
 import { planCard, newPlan } from './renewal.js';
@@ -214,12 +215,20 @@ function vehicleDocs(vrows, docRows) {
   });
   return { box, nearest, chart, expiredAll: items.filter((x) => x.d.days_left < 0).length };
 }
-const docRow = ({ v, d }) => html`<li><a href="#/vehicles/${v.id}?tab=docs" class="vdoc-row">
+// خطة التجديد لكل سيارة في القوائم: فتح خطتها مباشرة، أو إنشاؤها بضغطة واحدة
+let rnPlans = null;
+const planAction = (v) => {
+  if (!rnPlans) return '';
+  const pl = rnPlans.find((x) => x.vehicle_id === v.id);
+  if (pl) return html`<a class="rn-row-btn" href="#/renewal/${pl.id}" data-rn-open="${pl.id}">الخطة <span class="num">${num(pl.done_count)}/5</span></a>`;
+  return api.can('create') ? html`<button type="button" class="rn-row-btn add" data-rn-create="${v.id}" aria-label="إنشاء خطة تجديد ${v.plate_no}">+ خطة</button>` : '';
+};
+const docRow = ({ v, d }) => html`<li class="vdoc-li"><a href="#/vehicles/${v.id}?tab=docs" class="vdoc-row">
   <i class="dot pl-${v.place}" title="${PLACES.find(([k]) => k === v.place)[1]}"></i>
   <span class="vdoc-car"><b class="plate">${v.plate_no}</b> <small class="muted">${v.code}</small></span>
   <span class="vdoc-type">${VDOC_NAME[d.doc_type]}</span>
   <span class="num vdoc-date">${date(d.expiry_date)}</span>
-  <span class="tag ${d.days_left < 0 ? 't-expired' : 't-expiring'} num">${d.days_left < 0 ? `منتهية منذ ${num(-d.days_left)} يوم` : d.days_left === 0 ? 'تنتهي اليوم' : `باقي ${num(d.days_left)} يوم`}</span></a></li>`;
+  <span class="tag ${d.days_left < 0 ? 't-expired' : 't-expiring'} num">${d.days_left < 0 ? `منتهية منذ ${num(-d.days_left)} يوم` : d.days_left === 0 ? 'تنتهي اليوم' : `باقي ${num(d.days_left)} يوم`}</span></a>${raw(planAction(v))}</li>`;
 function vdocsList(vd, k) {
   if (!k) {
     return html`<h3 class="vdoc-h">أقرب الوثائق انتهاءً — خلال ${num(SOON_DAYS)} يوماً <small class="muted">(سيارة واحدة = أقرب وثيقة لها)</small></h3>
@@ -243,6 +252,7 @@ function vdocsChart(rows) {
   </div>`;
 }
 function vdocsPanel(vd) {
+  rnPlans = vd.plans;
   return html`<article class="panel vdocs" data-vdocs aria-labelledby="p-vdocs">
     <header><h2 id="p-vdocs">وثائق السيارات</h2><a href="#/documents" class="link">كل الوثائق</a></header>
     <p class="muted small vdoc-sub">رخصة السير · الفحص الدوري · التأمين — من بطاقات السيارات مباشرة. اضغط على خانة لعرض سياراتها.</p>
@@ -258,12 +268,14 @@ function vdocsPanel(vd) {
 }
 // قسم «خطة تجديد المركبة والمفوض» داخل بطاقة وثائق السيارات
 const RN_SHOW = 5;
-function renewalSection(plans) {
+function renewalSection(all, k = '') {
+  const plans = k ? all.filter((p) => placeOf(p) === k) : all;
+  const pname = k ? PLACES.find(([x]) => x === k)[1] : '';
   return html`<section class="rn-section" data-renewal aria-labelledby="p-renewal">
-    <div class="rn-section-h"><h3 id="p-renewal">خطة تجديد المركبة والمفوض</h3><span class="rn-count num">${num(plans.length)} جارية</span></div>
+    <div class="rn-section-h"><h3 id="p-renewal">خطة تجديد المركبة والمفوض${raw(k ? html` <small class="rn-for"><i class="dot pl-${k}"></i> ${pname}</small>` : '')}</h3><span class="rn-count num">${num(plans.length)} جارية</span></div>
     ${raw(plans.length ? html`<div class="rn-list">${raw(plans.slice(0, RN_SHOW).map(planCard).join(''))}</div>
-      ${raw(plans.length > RN_SHOW ? html`<p class="small"><a class="link" href="#/renewal?place=&status=active">عرض كل الخطط (${num(plans.length)})</a></p>` : '')}`
-      : '<p class="muted small">لا توجد خطط تجديد جارية.</p>')}
+      ${raw(plans.length > RN_SHOW ? html`<p class="small"><a class="link" href="#/renewal?place=${k}&status=active">عرض كل الخطط (${num(plans.length)})</a></p>` : '')}`
+      : html`<p class="muted small" data-rn-empty>لا توجد خطط تجديد جارية${k ? ` لسيارات «${pname}»` : ''}. ${raw(api.can('create') ? 'أنشئ خطة من زر «+ خطة» بجانب أي سيارة في القائمة أدناه.' : '')}</p>`)}
     <div class="rn-actions"><a class="btn" href="#/delegates">${icon('people')}<span>المفوّضون</span></a>
       <a class="btn" href="#/renewal?place=&status=">${icon('doc')}<span>كل الخطط</span></a>
       ${raw(api.can('create') ? html`<button type="button" class="btn btn-primary" data-act="rn-new">${icon('plus')}<span>خطة جديدة</span></button>` : '')}</div>
@@ -272,10 +284,24 @@ function renewalSection(plans) {
 function bindVdocs(panel, vd) {
   panel.addEventListener('click', (e) => {
     if (e.target.closest('[data-act=rn-new]')) { newPlan(); return; }
-    const b = e.target.closest('[data-dpick]'); if (!b) return;
-    const k = b.dataset.dpick; const again = panel.dataset.picked === k;
+    // إنشاء خطة لسيارة من القائمة مباشرة ثم فتحها
+    const cr = e.target.closest('[data-rn-create]');
+    if (cr) {
+      cr.disabled = true;
+      api.rpc('create_renewal_plan', { p_vehicle: cr.dataset.rnCreate, p_notes: null })
+        .then((id) => { toast('أُنشئت خطة التجديد', 'ok'); location.hash = `#/renewal/${id}`; })
+        .catch((err) => { cr.disabled = false; toast(errorText(err), 'error'); });
+      return;
+    }
+    // «خطط تجديد: N» تحت الخانة = اختيار الخانة نفسها (تظهر خططها هنا مباشرة)
+    const pl = e.target.closest('[data-rn-place]');
+    const b = pl ? panel.querySelector(`[data-dpick="${pl.dataset.rnPlace}"]`) : e.target.closest('[data-dpick]'); if (!b) return;
+    if (pl) e.preventDefault();
+    const k = b.dataset.dpick; const again = !pl && panel.dataset.picked === k;
     panel.dataset.picked = again ? '' : k; panel.classList.toggle('has-pick', !again);
     panel.querySelectorAll('[data-dpick]').forEach((x) => x.classList.toggle('on', !again && x.dataset.dpick === k));
     panel.querySelector('[data-vdocs-list]').innerHTML = vdocsList(vd, again ? '' : k);
+    const sec = panel.querySelector('[data-renewal]');
+    if (sec && vd.plans) { sec.outerHTML = renewalSection(vd.plans, again ? '' : k); if (pl) panel.querySelector('[data-renewal]').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
   });
 }

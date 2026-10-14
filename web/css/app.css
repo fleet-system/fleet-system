@@ -894,3 +894,8 @@ a.tabbtn { display: inline-flex; align-items: center; text-decoration: none; }
 .rn-mini { font-size: .85rem; color: inherit; }
 .rn-dup ul { margin: 6px 0 0; padding-inline-start: 18px; display: grid; gap: 6px; }
 .dlg-row .tag { margin-inline-start: 6px; }
+.vdoc-li { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); }
+.vdoc-li .vdoc-row { flex: 1; min-width: 0; border-top: 0; }
+.rn-row-btn { flex: none; font: inherit; font-size: .78rem; font-weight: 600; padding: 6px 10px; min-height: 34px; display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; border: 1px solid var(--palm); background: #E3F0E6; color: var(--palm); text-decoration: none; cursor: pointer; }
+.rn-row-btn.add { background: var(--panel); }
+.rn-for { font-size: .8rem; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
