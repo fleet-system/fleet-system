@@ -81,11 +81,18 @@ select rtst.ok((select string_agg(s.step_no || ':' || s.status || ':' || coalesc
 update vehicles set delegate_id = (select id from delegates order by created_at limit 1) where id = 'b0000000-0000-0000-0000-000000000003';
 select rtst.ok((select s.status || ':' || s.source from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000003' and s.step_no = 1) = 'done:auto', 'linking a delegate with a valid licence completes step 1');
 select rtst.ok(refresh_renewal_plan((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000003')) = 0, 'refresh is safe to repeat');
+-- changing the delegate re-checks step 1: a new delegate without a licence date -> pending again; valid licence -> done
+insert into delegates(full_name) values ('Test Delegate B');
+update vehicles set delegate_id = (select id from delegates where full_name = 'Test Delegate B') where id = 'b0000000-0000-0000-0000-000000000003';
+select rtst.ok((select s.status from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000003' and s.step_no = 1) = 'pending', 'new delegate without licence date: step 1 not complete');
+select rtst.ok((select authorized_name from vehicles where id = 'b0000000-0000-0000-0000-000000000003') = 'Test Delegate B', 'card shows the new delegate');
+update vehicles set delegate_id = (select id from delegates where code = 'DLG-0001') where id = 'b0000000-0000-0000-0000-000000000003';
+select rtst.ok((select s.status || ':' || s.source from renewal_steps s join renewal_plans p on p.id = s.plan_id where p.vehicle_id = 'b0000000-0000-0000-0000-000000000003' and s.step_no = 1) = 'done:auto', 'back to a delegate with a valid licence: step 1 complete');
 insert into delegates(full_name) values (U&'\0627\062D\0645\062F \0639\0644\064A ');
 select rtst.ok(exists (select 1 from jsonb_array_elements(delegate_duplicates()) x where x->>'reason' = 'name'), 'duplicate delegate detected');
-select merge_delegates((select id from delegates where code = 'DLG-0001'), (select id from delegates where code = 'DLG-0002'));
+select merge_delegates((select id from delegates where code = 'DLG-0001'), (select id from delegates where code <> 'DLG-0001' and full_name <> 'Test Delegate B' and deleted_at is null));
 select rtst.ok(jsonb_array_length(delegate_duplicates()) = 0, 'no duplicates after merge');
-select rtst.ok((select count(*) from delegates) = 2 and (select count(*) from delegates where deleted_at is not null) = 1, 'merged delegate archived, not deleted');
+select rtst.ok((select count(*) from delegates where full_name <> 'Test Delegate B') = 2 and (select count(*) from delegates where deleted_at is not null) = 1, 'merged delegate archived, not deleted');
 
 -- archive (no hard delete)
 select archive_renewal_plan((select id from renewal_plans where vehicle_id = 'b0000000-0000-0000-0000-000000000002'), 'test');
