@@ -5,6 +5,13 @@ import { html, raw } from '../ui.js';
 import { label, km, num, date } from '../fmt.js';
 import { planCard, licTag, normName } from './renewal.js';
 
+// كل كلمات البحث موجودة في النص المجمّع (بعد توحيد الهمزات والمسافات وحالة الأحرف)
+function matchAll(q, fields) {
+  const hay = normName(fields.filter(Boolean).join(' '));
+  const words = normName(q).split(' ').filter(Boolean);
+  return words.length > 0 && words.every((w) => hay.includes(w));
+}
+
 export async function renderSearch(el, q) {
   const clean = q.replace(/[(),*%\\]/g, ' ').trim();
   const box = document.querySelector('form.search input');
@@ -14,11 +21,10 @@ export async function renderSearch(el, q) {
   await data.lookups();
   const siteIds = data.siteOptions(false).filter(([, t]) => t.toLowerCase().includes(clean.toLowerCase())).map(([k]) => k);
   const [vehicles, employees, requests] = await Promise.all([
+    // السيارات: كل كلمة من البحث يجب أن تظهر في بيانات السيارة (بأي ترتيب)، فيُطابق «ب ح د 1624» اللوحة «ب ح د DJB 1624»
     api.get('v_vehicles_overview', {
-      select: 'id,code,plate_no,vehicle_type,make,owner_company_name,site_name,driver_name,op_status,odometer',
-      or: `(plate_no.ilike.${like},code.ilike.${like},driver_name.ilike.${like},vehicle_type.ilike.${like},make.ilike.${like},owner_company_name.ilike.${like},site_name.ilike.${like})`,
-      order: 'code', limit: 50,
-    }),
+      select: 'id,code,plate_no,vehicle_type,make,model,owner_company_name,site_name,driver_name,current_user_name,authorized_name,vin,op_status,odometer', order: 'code',
+    }).then((rows) => rows.filter((v) => matchAll(clean, [v.plate_no, v.code, v.driver_name, v.vehicle_type, v.make, v.model, v.owner_company_name, v.site_name, v.current_user_name, v.authorized_name, v.vin])).slice(0, 50)),
     api.get('employees', {
       select: 'id,code,full_name,job_title,status', deleted_at: 'is.null',
       or: `(full_name.ilike.${like},code.ilike.${like})`, order: 'full_name', limit: 50,
@@ -40,10 +46,9 @@ export async function renderSearch(el, q) {
   ]);
   const extraIds = privIds.filter((x) => !dlgs.some((d) => d.id === x));
   if (extraIds.length) dlgs.push(...await api.get('v_delegates', { select: '*', id: `in.(${extraIds.join(',')})` }).catch(() => []));
-  const plans = await api.get('v_renewal_plans', {
-    select: '*', or: `(plate_no.ilike.${like},code.ilike.${like},plan_no.ilike.${like},delegate_name.ilike.${like}${dlgs.length ? `,delegate_id.in.(${dlgs.map((d) => d.id).join(',')})` : ''})`,
-    order: 'created_at.desc', limit: 50,
-  }).catch(() => []);
+  const dlgIds = new Set(dlgs.map((d) => d.id));
+  const plans = await api.get('v_renewal_plans', { select: '*', order: 'created_at.desc' })
+    .then((rows) => rows.filter((p) => dlgIds.has(p.delegate_id) || matchAll(clean, [p.plate_no, p.code, p.plan_no, p.delegate_name])).slice(0, 50)).catch(() => []);
   el.innerHTML = html`
     <div class="page-head"><h1>نتائج البحث عن «${q}»</h1></div>
     ${raw(plans.length ? html`<section class="followups" data-search-plans>

@@ -120,6 +120,9 @@ with sync_playwright() as p:
     ok(g.locator('.rn-chip').count() == 7, 'plans can be filtered by the six vehicle statuses')
     go(g, '#/search?q=' + 'احمد', '.page-head')
     ok(g.locator('[data-search-delegates] .rn-card').count() == 1 and g.locator('[data-search-plans] .rn-card').count() >= 1, 'search by delegate name finds the delegate and his plans')
+    sql(f"update vehicles set plate_no = 'ر س ص RSD 2468' where id = '{V[3]}'")
+    go(g, '#/search?q=' + 'ر س ص 2468', '.page-head')
+    ok(f'#/vehicles/{V[3]}' in g.inner_html('#page'), 'plate search matches all words in any order (Arabic letters + digits, English letters in between)')
     go(g, '#/search?q=' + PLATE1.split()[-1], '.page-head')
     ok(g.locator(f'[data-search-plans] [data-plan="{plan_id}"]').count() == 1, 'search by plate finds the plan')
     # 10) dashboard counts per status, phone layout
