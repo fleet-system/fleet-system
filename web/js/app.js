@@ -28,7 +28,7 @@ import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.27';
+export const VERSION = '1.28';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -199,6 +199,7 @@ async function route() {
   el.innerHTML = '<div class="loading" aria-live="polite">جارٍ التحميل…</div>';
   host.replaceChildren(el);
   if (Date.now() - (route.bellAt || 0) > 20000) { route.bellAt = Date.now(); loadBell(); }
+  checkUpdate();
   const nav = NAV.find((n) => n.id === page);
   document.title = `${nav ? nav.t : page === 'search' ? 'نتائج البحث' : 'الصفحة'} — نظام إدارة الأسطول`;
   try {
@@ -234,6 +235,24 @@ async function route() {
   }
   if (el.isConnected) { host.focus({ preventScroll: true }); window.scrollTo(0, 0); }
 }
+
+// تنبيه «يوجد إصدار جديد»: الصفحة المفتوحة منذ مدة تبقى على النسخة القديمة حتى تُحدَّث
+let updAt = 0;
+async function checkUpdate(force = false) {
+  if (!force && Date.now() - updAt < 120000) return;
+  updAt = Date.now();
+  try {
+    const t = await (await fetch(`js/app.js?v=${Date.now()}`, { cache: 'no-store' })).text();
+    const m = t.match(/VERSION = '([^']+)'/);
+    if (!m || m[1] === VERSION || document.querySelector('.upd-banner')) return;
+    const b = document.createElement('div');
+    b.className = 'upd-banner'; b.setAttribute('role', 'status');
+    b.innerHTML = html`<span>يوجد إصدار جديد من النظام (<b class="num">${m[1]}</b>). حدّث الصفحة لتظهر آخر التعديلات.</span><button type="button" class="btn btn-sm btn-primary" data-upd>تحديث الآن</button>`;
+    b.querySelector('[data-upd]').onclick = () => location.reload();
+    document.body.appendChild(b);
+  } catch (_) { /* غير حرج */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(true); });
 
 async function disabled() {
   root.innerHTML = html`<div class="empty"><h1>الحساب معطّل</h1><p>تواصل مع مسؤول النظام لإعادة تفعيل حسابك.</p><button class="btn" data-out>تسجيل الخروج</button></div>`;
