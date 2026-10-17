@@ -7,6 +7,7 @@ import { openForm, saved, userError } from '../form.js';
 import { downloadBackup, restoreFileFromBackup, TABLES } from '../backup.js';
 import { SUPABASE_URL } from '../config.js';
 import { confirmBox } from '../form.js';
+import * as push from '../push.js';
 
 const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 864e5) : null);
 
@@ -35,6 +36,12 @@ export async function renderSettings(el) {
       <p class="muted small">الشركات والمواقع تُعدَّل من صفحة <a href="#/sites">الشركات والمواقع</a>.</p>
     </section>
 
+    <section class="panel push-panel" data-push>
+      <div class="tab-head"><h2>إشعارات الجوال</h2><span class="tag t-missing" data-push-tag>…</span></div>
+      <p>يصلك إشعار على هذا الجهاز كل صباح (06:30) بالوثائق المنتهية والقريبة من الانتهاء، وعند إرسال طلب صيانة للاعتماد (لمن يملك صلاحية الاعتماد).</p>
+      <div data-push-body class="muted small">جارٍ التحقق من هذا الجهاز…</div>
+    </section>
+
     <section class="panel">
       <div class="tab-head"><h2>إدارة بيانات السيارات</h2></div>
       <p>أسماء حقول بطاقة السيارة، والقوائم والخيارات، والحقول الإضافية، وسجل تعديلات هذه الإعدادات مع إمكانية التراجع.</p>
@@ -59,8 +66,10 @@ export async function renderSettings(el) {
         <div class="btn-row"><a class="btn btn-primary" href="#/backup">${icon('shield')}<span>فتح صفحة النسخ الاحتياطي وحماية البيانات</span></a></div>` : html`<p class="muted">النسخ الاحتياطي متاح لمسؤول النظام فقط.</p>`)}
     </section>`;
 
+  paintPush(el);
   el.onclick = async (e) => {
     const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act.startsWith('push-')) { await pushAction(b, el); return; }
     if (b.dataset.act === 'xl-new' || b.dataset.act === 'xl-off' || b.dataset.act === 'xl-copy') { await excelLinkAction(b, S.excel_feed, el); return; }
     const prog = el.querySelector('[data-progress]');
     if (b.dataset.act === 'backup') {
@@ -192,4 +201,35 @@ async function saveFeed(value) {
   const u = await api.update('app_settings', { key: 'eq.excel_feed' }, { value });
   if (!u.length) await api.insert('app_settings', { key: 'excel_feed', value, description: 'linked Excel file (hash of the access key only)' });
   data.invalidate();
+}
+
+// ---------------- إشعارات الجوال (لكل جهاز على حدة)
+const PUSH_TAG = { on: ['t-valid', 'مفعّلة على هذا الجهاز'], off: ['t-missing', 'غير مفعّلة'], denied: ['t-expired', 'مرفوضة'], needs_install: ['t-expiring', 'تحتاج تثبيت التطبيق'], unsupported: ['t-missing', 'غير مدعومة'] };
+async function paintPush(el) {
+  const box = el.querySelector('[data-push-body]'), tag = el.querySelector('[data-push-tag]');
+  if (!box) return;
+  let st = 'unsupported';
+  try { st = await push.status(); } catch (_) { /* keep */ }
+  const [cls, txt] = PUSH_TAG[st];
+  tag.className = `tag ${cls}`; tag.textContent = txt;
+  box.className = '';
+  box.innerHTML = st === 'needs_install' ? html`<div class="warn-box"><b>على الآيفون تعمل الإشعارات من أيقونة التطبيق فقط:</b>
+      <ol class="push-steps"><li>اضغط زر المشاركة ${icon('upload')} أسفل Safari.</li><li>اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».</li><li>افتح النظام من الأيقونة الجديدة، ثم ارجع لهذه الصفحة واضغط «تفعيل الإشعارات».</li></ol></div>`.toString()
+    : st === 'unsupported' ? html`<p class="muted">هذا المتصفح لا يدعم الإشعارات. استخدم Safari على الآيفون (بعد إضافة التطبيق للشاشة الرئيسية) أو Chrome.</p>`.toString()
+    : st === 'denied' ? html`<div class="bad-box">الإشعارات مرفوضة لهذا الموقع. على الآيفون: الإعدادات ← الإشعارات ← الأسطول ← السماح بالإشعارات، ثم ارجع هنا.</div>`.toString()
+    : st === 'on' ? html`<div class="btn-row wrap"><button class="btn btn-primary" data-act="push-test">${icon('bell')}<span>إرسال إشعار تجريبي</span></button><button class="btn" data-act="push-off">${icon('close')}<span>إيقاف على هذا الجهاز</span></button></div>`.toString()
+    : html`<div class="btn-row wrap"><button class="btn btn-primary" data-act="push-on">${icon('bell')}<span>تفعيل الإشعارات على هذا الجهاز</span></button></div>`.toString();
+}
+async function pushAction(b, el) {
+  b.disabled = true;
+  try {
+    if (b.dataset.act === 'push-on') { await push.enable(); saved('تم تفعيل الإشعارات على هذا الجهاز'); await push.test().catch(() => {}); }
+    if (b.dataset.act === 'push-test') { const r = await push.test(); saved(r.sent ? 'أُرسل إشعار تجريبي — يصلك خلال ثوانٍ' : 'لم يصل الإشعار، فعّلها من جديد'); }
+    if (b.dataset.act === 'push-off') { await push.disable(); saved('تم إيقاف الإشعارات على هذا الجهاز'); }
+  } catch (err) {
+    const m = err.message === 'DENIED' ? 'رفضت الإذن. فعّله من إعدادات الجهاز ← الإشعارات.' : err.message === 'DISMISSED' ? 'لم يتم منح الإذن.' : err.status === 404 && err.code === 'NO_DEVICE' ? 'هذا الجهاز غير مسجل، فعّل الإشعارات أولاً.' : err.status ? errorText(err) : 'تعذر التفعيل على هذا الجهاز. تأكد من الاتصال بالإنترنت وحاول مرة أخرى.';
+    toast(m, 'error');
+  }
+  b.disabled = false;
+  paintPush(el);
 }

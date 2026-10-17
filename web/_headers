@@ -9,3 +9,5 @@
   Cache-Control: no-cache
 /css/*
   Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache

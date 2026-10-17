@@ -13,6 +13,7 @@ import { renderEmployees, renderEmployee, addEmployee } from './pages/employees.
 import { renderDocuments } from './pages/documents.js';
 import { saved } from './form.js';
 import { pruneDrafts } from './drafts.js';
+import { registerWorker } from './push.js';
 import { renderProtect } from './pages/protect.js';
 import { renderVehicleFields, renderVehiclesArchive } from './pages/vehicle-admin.js';
 import { renderRequestsAdmin } from './pages/request-admin.js';
@@ -28,7 +29,7 @@ import { renderReports } from './pages/reports.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.29';
+export const VERSION = '1.30';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -253,6 +254,7 @@ async function checkUpdate(force = false) {
   } catch (_) { /* غير حرج */ }
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(true); });
+registerWorker(); // عامل الخدمة لإشعارات الجوال فقط (بدون تخزين مؤقت)
 
 async function disabled() {
   root.innerHTML = html`<div class="empty"><h1>الحساب معطّل</h1><p>تواصل مع مسؤول النظام لإعادة تفعيل حسابك.</p><button class="btn" data-out>تسجيل الخروج</button></div>`;

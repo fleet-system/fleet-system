@@ -240,3 +240,20 @@ export async function signedUrl(path, expiresIn = 3600, download = false) {
 }
 
 export const remove = (table, filters) => request('DELETE', table, { query: filters, prefer: 'return=representation' });
+
+// استدعاء دالة Supabase (Edge Function) باسم المستخدم الحالي
+export async function fn(name, body = {}) {
+  await ensureFresh();
+  if (!session) throw new ApiError('SESSION_EXPIRED', 401, 'SESSION_EXPIRED');
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (_) { throw new ApiError('NETWORK', 0, 'NETWORK'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ApiError(j.error || 'error', r.status, j.error);
+  return j;
+}

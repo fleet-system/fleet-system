@@ -7,6 +7,7 @@ import { label, LABELS, num, date, dateTime, todayISO, errorText } from '../fmt.
 import { openForm, confirmBox, saved, userError } from '../form.js';
 import { renderList } from '../listpage.js';
 import { attachmentsDialog, mountAttachments } from '../attachments.js';
+import { notifyRequest } from '../push.js';
 import { maintForm } from './ops.js';
 
 const STATUS = Object.entries(LABELS.mr_status);
@@ -91,8 +92,9 @@ export async function requestForm(vehicleId = null, row = null) {
       for (const k of ['vehicle_id', 'driver_id', 'site_id']) if (k in rec && !rec[k]) rec[k] = null;
       if (OPEN.includes(st) && !rec.vehicle_id && !rec.equipment_text && !rec.plate_no) throw userError('اختر السيارة من القائمة، أو اكتب اسم المعدة أو رقم اللوحة.');
       if (send) rec.status = 'pending_supervisor';
-      if (isNew) { const [r] = await api.insert('maintenance_requests', rec); return r; }
+      if (isNew) { const [r] = await api.insert('maintenance_requests', rec); if (send) notifyRequest(r?.id); return r; }
       const [r] = await api.update('maintenance_requests', { id: `eq.${row.id}` }, rec);
+      if (send) notifyRequest(r?.id);
       return r;
     },
   });
@@ -269,7 +271,7 @@ async function renderRequest(el, id, params) {
     if (a === 'print') window.print();
     if (a === 'pdf') { toast('في نافذة الطباعة اختر «حفظ كـ PDF» (على الآيفون: مشاركة ← حفظ في الملفات).', 'ok'); setTimeout(() => window.print(), 400); }
     if (a === 'edit' && await requestForm(null, r)) { saved(); reload(); }
-    if (a === 'send') await setStatus('pending_supervisor', 'أُرسل الطلب لاعتماد المشرف');
+    if (a === 'send') { await setStatus('pending_supervisor', 'أُرسل الطلب لاعتماد المشرف'); notifyRequest(r.id); }
     if (a === 'decide' && await decide(r)) { saved('تم تسجيل القرار'); reload(); }
     if (a === 'start') await setStatus('in_progress', 'الطلب الآن قيد الصيانة');
     if (a === 'done' && await confirmBox('تأكيد إنجاز الصيانة؟ بعد الإكمال تُقفل بيانات الطلب، ويمكن تسجيل فاتورة الصيانة وإرفاق صورها.', { title: 'إنجاز الصيانة', okText: 'تم الإنجاز' })) await setStatus('completed', 'اكتملت الصيانة');

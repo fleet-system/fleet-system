@@ -16,7 +16,7 @@ n=$(psql -d fleet_ui -X -f renewal_db_tests.sql 2>&1 | tee "$OUT/renewal_db.log"
 note "renewal plan rules (renewal_db_tests.sql): PASS $n, FAIL $err"
 for tz in UTC America/New_York Asia/Riyadh Pacific/Kiritimati; do note "$(TZ=$tz node unit_js.mjs | head -1)"; done
 
-for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo ui_request_archive ui_vehicle_auth ui_excel_link ui_vehicle_owners ui_dashboard_status ui_dashboard_docs ui_renewal_pdf ui_renewal_plan ui_excel_renewal robust_ui; do
+for t in ui_check ui_phase3 ui_phase4 ui_phase5 ui_phase6 ui_phase7 ui_requests ui_freetext ui_nav ui_mobile_field ui_persistence ui_vehicle_card ui_backup ui_insurance_owner ui_vehicle_admin ui_logo ui_request_archive ui_vehicle_auth ui_excel_link ui_vehicle_owners ui_dashboard_status ui_dashboard_docs ui_renewal_pdf ui_renewal_plan ui_excel_renewal ui_push robust_ui; do
   bash reset_ui_db.sh >/dev/null
   python3 -I $t.py "$OUT/$t" > "$OUT/$t.log" 2>&1
   s=$(grep -E '^PASS [0-9]+ FAIL [0-9]+' "$OUT/$t.log" | tail -1); [ -z "$s" ] && s=$(grep -E '^(PASS|PASSED|ALL UI CHECKS PASSED)' "$OUT/$t.log" | head -1)
@@ -25,6 +25,8 @@ done
 bash reset_ui_db.sh >/dev/null
 node excel_feed_test.mjs "$OUT/excel_feed" > "$OUT/excel_feed.log" 2>&1
 note "excel_feed (linked Excel file): $(grep -E '^PASS [0-9]+ FAIL' "$OUT/excel_feed.log") $(grep -E '^FAIL' "$OUT/excel_feed.log" | head -1)"
+node push_logic_test.mjs > "$OUT/push_logic.log" 2>&1
+note "push_logic (phone notification messages): $(grep -E '^PASS [0-9]+ FAIL' "$OUT/push_logic.log") $(grep -E '^FAIL' "$OUT/push_logic.log" | head -1)"
 python3 -I backup_restore_tests.py > "$OUT/backup_db.log" 2>&1
 note "backup_restore_tests (scratch DB): $(grep -E '^PASS' "$OUT/backup_db.log") $(grep -E '^FAIL' "$OUT/backup_db.log")"
 bash reset_ui_db.sh >/dev/null
