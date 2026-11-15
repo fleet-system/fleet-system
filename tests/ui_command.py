@@ -28,7 +28,8 @@ with sync_playwright() as p:
         ok(g.locator('.w3d .w3d-fallback').count() == 1, f'[{w}] CSS fallback scene present')
         try: g.wait_for_selector('.w3d-canvas.on', timeout=20000); drew = True
         except Exception: drew = False
-        ok(drew, f'[{w}] 3D welcome scene drawn (local three.js)')
+        ok(drew, f'[{w}] no satellite tiles (offline) -> drawn 3D scene instead (local three.js)')
+        ok(g.locator('.w3d-map').count() == 0, f'[{w}] satellite globe removed when tiles do not load')
         g.wait_for_timeout(800)
         import io
         from PIL import Image
@@ -43,6 +44,26 @@ with sync_playwright() as p:
         g.fill('input[name=email]', 'admin@test.local'); g.fill('input[name=password]', 'test1234'); g.click('button[type=submit]'); g.wait_for_selector('.panels')
         ok(g.locator('.w3d-canvas').count() == 0, f'[{w}] 3D scene removed after sign-in')
         c.close()
+    # 1ب) مع صور القمر الصناعي (صور بديلة في الاختبار): الكرة الأرضية والنزول على المزارع الأربع
+    from PIL import Image as _I
+    tile = os.path.join(OUT, 'tile.jpg'); _I.new('RGB', (256, 256), (190, 150, 100)).save(tile)
+    for w, h in [(390, 844), (1360, 900)]:
+        c, g = new_ctx(b, w, h, real=True)
+        g.route('**/World_Imagery/**', lambda r: r.fulfill(path=tile, content_type='image/jpeg', headers={'Access-Control-Allow-Origin': '*'}))
+        g.goto(BASE); g.wait_for_selector('form.login-card')
+        try: g.wait_for_selector('.w3d-map.on', timeout=20000); real = True
+        except Exception: real = False
+        ok(real, f'[{w}] real satellite welcome shown')
+        ok(g.locator('.w3d-pin').count() == 4, f'[{w}] 4 farm pins on the welcome globe')
+        g.wait_for_timeout(11000)
+        ok(g.locator('.w3d-canvas').count() == 0 and g.locator('.w3d-map').count() == 1, f'[{w}] satellite kept (no fallback) when tiles load')
+        ok(g.locator('.login-card button[type=submit]').is_visible(), f'[{w}] login usable over the globe')
+        overflow(g, w, 'login (satellite)')
+        g.screenshot(path=f'{OUT}/login-sat-{w}.png')
+        g.fill('input[name=email]', 'admin@test.local'); g.fill('input[name=password]', 'test1234'); g.click('button[type=submit]'); g.wait_for_selector('.panels')
+        g.wait_for_timeout(2000)
+        ok(g.locator('.w3d-map').count() == 0, f'[{w}] welcome globe removed after sign-in')
+        c.close()
     # 2) بدون WebGL/مكتبة (الاختبارات الآلية): يبقى البديل ولا أخطاء
     c, g = new_ctx(b)
     g.goto(BASE); g.wait_for_selector('form.login-card'); g.wait_for_timeout(500)
@@ -52,14 +73,16 @@ with sync_playwright() as p:
     # 3) خريطة المزارع الحية = نفس بيانات السيارات
     for w in (1360, 390):
         c, g = new_ctx(b, w, 900); login(g)
-        g.goto(f'{BASE}#/dashboard'); g.wait_for_selector('[data-fleet-map] [data-car]'); g.wait_for_timeout(400)
+        g.goto(f'{BASE}#/dashboard'); g.wait_for_selector('[data-fleet-map] .cc-real .cc-farm [data-car]'); g.wait_for_timeout(600)
+        ok(g.locator('[data-fleet-map] svg').count() == 0, f'[{w}] real satellite map replaced the drawing')
+        ok(g.locator('.cc-real .cc-farm').count() == 4, f'[{w}] 4 farms placed at their real locations')
         n_db = int(sql('select count(*) from v_vehicles_overview'))
         ok(g.locator('[data-fleet-map] [data-car]').count() == n_db, f'[{w}] map shows every vehicle ({n_db})')
         total = int(g.inner_text('.panel.fleet .big .num'))
         ok(total == n_db, f'[{w}] map count = dashboard total ({total})')
         for k in ['inside', 'outside', 'stopped', 'maintenance', 'accident', 'workshop']:
             box = int(g.inner_text(f'[data-fleet-place] [data-k={k}] b'))
-            ok(g.locator(f'[data-fleet-map] .cc-car.pl-{k}').count() == box, f'[{w}] map color «{k}» = dashboard box ({box})')
+            ok(g.locator(f'[data-fleet-map] [data-car].pl-{k}').count() == box, f'[{w}] map color «{k}» = dashboard box ({box})')
         # لكل موقع: عدد السيارات على الخريطة = عدد سياراته في قاعدة البيانات
         for sid, cnt in [r.split('|') for r in sql("select coalesce(site_id::text,''), count(*) from v_vehicles_overview group by 1").splitlines()]:
             if sid: ok(g.locator(f'[data-site-id="{sid}"] [data-car]').count() == int(cnt), f'[{w}] site {sid[:8]}: {cnt} vehicles on the map')
@@ -71,9 +94,10 @@ with sync_playwright() as p:
         car = g.locator('[data-fleet-map] [data-car]').first
         href = car.get_attribute('href'); plate = car.get_attribute('data-plate')
         if w > 1000:
-            car.hover(); g.wait_for_timeout(200)
+            g.evaluate("document.querySelector('[data-fleet-map]').scrollIntoView({block: 'center'})"); g.wait_for_timeout(2500)  # بعد حركة الاقتراب
+            car.dispatch_event('pointerover'); g.wait_for_timeout(200)
             ok(g.locator('.cc-info').is_visible() and plate in g.inner_text('.cc-info'), 'hover shows the vehicle plate')
-        car.dispatch_event('click') if w < 1000 else car.click()
+        car.dispatch_event('click')
         g.wait_for_selector('.vhead'); vid = href.split('/')[-1]
         ok(sql(f"select plate_no from v_vehicles_overview where id = '{vid}'") == plate and plate in g.inner_text('.vhead'), f'[{w}] map dot opens the right vehicle card ({plate})')
         c.close()

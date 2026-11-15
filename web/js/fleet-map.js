@@ -3,9 +3,12 @@
 import { html, raw } from './ui.js';
 import { num } from './fmt.js';
 import { PLACES, placeOf } from './pages/vehicles.js';
+import { loadMapLib, webglOk, satStyle, autoDispose } from './realmap.js';
+import { locate } from './farm-locations.js';
 
 const PNAME = Object.fromEntries(PLACES);
 const GOLD = Math.PI * (3 - Math.sqrt(5));
+let lastHubs = [];
 
 export function fleetMap(vrows, sites) {
   if (!vrows) return '';
@@ -18,6 +21,7 @@ export function fleetMap(vrows, sites) {
   if (by.has('')) hubs.push({ id: '', name: 'بدون موقع', cars: by.get('') });
   if (!hubs.length) return '';
   hubs.sort((a, b) => b.cars.length - a.cars.length || a.name.localeCompare(b.name, 'ar'));
+  lastHubs = hubs;
   // توزيع المواقع على قطع ناقص حول المركز (الأسطول)
   const cx = W / 2, cy = H / 2 + (mobile ? 10 : 6);
   const rx = mobile ? W * .32 : W * .36, ry = mobile ? H * .34 : H * .32;
@@ -69,7 +73,7 @@ export function bindFleetMap(sec) {
   if (!sec) return;
   const info = sec.querySelector('.cc-info'), stage = sec.querySelector('.cc-stage');
   const show = (a) => {
-    const c = a.querySelector('circle').getBoundingClientRect(), s = stage.getBoundingClientRect();
+    const c = (a.querySelector('circle') || a).getBoundingClientRect(), s = stage.getBoundingClientRect();
     info.innerHTML = html`<b class="plate">${a.dataset.plate || a.dataset.code}</b><span class="muted small">${a.dataset.code} · ${a.dataset.site}</span><br><span>${a.dataset.st}</span>`;
     info.style.left = `${c.left - s.left + c.width / 2}px`; info.style.top = `${c.top - s.top}px`;
     // لا تخرج النافذة عن البطاقة في الجوال
@@ -81,4 +85,61 @@ export function bindFleetMap(sec) {
   sec.addEventListener('pointerout', (e) => { if (e.target.closest('[data-car]')) hide(); });
   sec.addEventListener('focusin', (e) => { const a = e.target.closest('[data-car]'); if (a) show(a); });
   sec.addEventListener('focusout', hide);
+  upgradeToReal(sec, lastHubs);
+}
+
+// 1.33: الخريطة الحقيقية (صور القمر الصناعي) بدل الرسم، بنفس السيارات ونفس الروابط. الرسم يبقى إن لم يتوفر WebGL.
+const carDot = (v, h, i, n) => {
+  const p = placeOf(v);
+  const ring = n <= 10 ? 1 : 0; // قليل = حلقة منتظمة، كثير = حلزون
+  const a = ring ? (i / n) * Math.PI * 2 + Math.PI / 2 : i * GOLD + Math.PI / 2;
+  const d = ring ? 30 : 28 + 6 * Math.sqrt(i);
+  return html`<a class="cc-dot pl-${p}" href="#/vehicles/${v.id}" data-car aria-label="${v.plate_no || v.code}: ${PNAME[p]}" style="transform:translate(${(d * Math.cos(a)).toFixed(1)}px, ${(d * Math.sin(a)).toFixed(1)}px)"
+    data-plate="${v.plate_no || ''}" data-code="${v.code || ''}" data-st="${PNAME[p]}" data-site="${h.name}"></a>`;
+};
+async function upgradeToReal(sec, hubs) {
+  if (!hubs.length || !webglOk()) return;
+  let ml; try { ml = await loadMapLib(); } catch { return; }
+  const stage = sec.querySelector('.cc-stage'); if (!stage || !sec.isConnected) return;
+  const placed = hubs.map((h) => ({ ...h, loc: h.id ? locate(h.name) : null }));
+  const on = placed.filter((h) => h.loc), off = placed.filter((h) => !h.loc);
+  if (!on.length) return;
+  const box = document.createElement('div'); box.className = 'cc-real';
+  stage.classList.add('real'); stage.prepend(box); // في الصفحة قبل إنشاء الخريطة حتى تأخذ مقاسها
+  let map;
+  try {
+    map = new ml.Map({ container: box, style: satStyle({ terrain: true }), center: [on[0].loc.lng, on[0].loc.lat], zoom: 8, pitch: 40,
+      attributionControl: { compact: true }, cooperativeGestures: true, maxPitch: 70, locale: { 'CooperativeGesturesHandler.WindowsHelpText': 'استخدم Ctrl + التمرير للتكبير', 'CooperativeGesturesHandler.MacHelpText': 'استخدم ⌘ + التمرير للتكبير', 'CooperativeGesturesHandler.MobileHelpText': 'استخدم إصبعين لتحريك الخريطة' } });
+  } catch { box.remove(); stage.classList.remove('real'); return; }
+  stage.querySelector('svg')?.remove();
+  autoDispose(map, box);
+  const all = () => {
+    const xs = on.map((h) => h.loc.lng), ys = on.map((h) => h.loc.lat);
+    if (on.length === 1) map.flyTo({ center: [xs[0], ys[0]], zoom: 14, pitch: 55, duration: 1800 });
+    else map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: { top: 90, bottom: 70, left: 70, right: 70 }, pitch: 42, bearing: -8, duration: 1800, maxZoom: 13 });
+  };
+  for (const h of on) {
+    const el = document.createElement('div'); el.className = `cc-farm f-${h.loc.key}`; el.dataset.siteId = h.id;
+    el.innerHTML = html`<button type="button" class="cc-farm-name" data-fly="${h.id}">${h.name}${raw(h.loc.approx ? ' <small>(تقريبي)</small>' : '')}</button>
+      <span class="cc-farm-core num">${num(h.cars.length)}</span>${raw(h.cars.map((v, i) => carDot(v, h, i, h.cars.length)).join(''))}`;
+    new ml.Marker({ element: el, anchor: 'center' }).setLngLat([h.loc.lng, h.loc.lat]).addTo(map);
+  }
+  // مواقع بلا إحداثيات: تحت الخريطة بنفس النقاط والروابط
+  if (off.length) {
+    const ul = document.createElement('div'); ul.className = 'cc-unplaced';
+    ul.innerHTML = off.map((h) => html`<div class="cc-off" data-site-id="${h.id}"><b>${h.name}</b> <span class="muted num">(${num(h.cars.length)})</span>
+      <span class="cc-off-dots">${raw(h.cars.map((v) => String(carDot(v, h, 0, 1)).replace(/ style="[^"]*"/, '')).join(''))}</span></div>`).join('');
+    stage.after(ul);
+  }
+  const bar = document.createElement('div'); bar.className = 'cc-map-tools';
+  bar.innerHTML = '<button type="button" class="cc-tool" data-fly-all>كل المزارع</button><span class="muted small">مكان السيارة = مزرعتها المسجلة في النظام (بدون GPS). اضغط اسم المزرعة للاقتراب.</span>';
+  sec.querySelector('.cc-legend').after(bar);
+  sec.addEventListener('click', (e) => {
+    if (e.target.closest('[data-fly-all]')) { all(); return; }
+    const f = e.target.closest('[data-fly]'); if (!f) return;
+    const h = on.find((x) => x.id === f.dataset.fly);
+    if (h) map.flyTo({ center: [h.loc.lng, h.loc.lat], zoom: 15.2, pitch: 60, bearing: map.getBearing() - 30, duration: 2600, essential: true });
+  });
+  map.once('styledata', () => map.resize());
+  map.on('load', () => { try { map.setTerrain({ source: 'dem', exaggeration: 1.8 }); } catch { /* */ } all(); });
 }

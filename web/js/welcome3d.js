@@ -1,10 +1,61 @@
+// 1.33: الترحيب الحقيقي: الكرة الأرضية بصور القمر الصناعي ثم نزول سينمائي على مزارعكم الحقيقية (realmap.js)،
+// وإن لم تصل الصور (بدون إنترنت) أو لم يتوفر WebGL يعمل المشهد المرسوم أدناه، ثم بديل CSS.
+import { loadMapLib, webglOk, satStyle, autoDispose } from './realmap.js';
+import { FARM_LOCATIONS } from './farm-locations.js';
+const FARM_NAMES = { nursery: 'مشتل الغملاس', ghamlas: 'مزرعة الغملاس', aram: 'مزرعة ارم', baraka: 'مزرعة البركة' };
+
+export async function startWelcome(host) {
+  if (!host || navigator.webdriver) return; // الاختبارات الآلية: بدون رسم ثقيل
+  if (!webglOk()) return;
+  let ml;
+  try { ml = await loadMapLib(); } catch { return startScene(host); }
+  if (!host.isConnected) return;
+  const box = document.createElement('div'); box.className = 'w3d-map'; host.append(box);
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const center = [43.92, 26.62];
+  let map;
+  try {
+    map = new ml.Map({ container: box, style: satStyle({ globe: true, terrain: true }), center: [46, 21], zoom: still ? 8 : 1.4, pitch: 0, bearing: 0,
+      interactive: false, attributionControl: { compact: true }, fadeDuration: 0, maxPitch: 75 });
+  } catch { box.remove(); return startScene(host); }
+  autoDispose(map, box);
+  let tiles = false;
+  map.on('data', (e) => { if (e.sourceId === 'sat' && e.tile) tiles = true; });
+  // بدون صور خلال 10 ثوانٍ (لا إنترنت/محجوبة) = المشهد المرسوم بدلها
+  setTimeout(() => { if (!tiles && box.isConnected) { try { map.remove(); } catch { /* */ } box.remove(); startScene(host); } }, 10000);
+  map.once('styledata', () => map.resize());
+  map.on('load', () => {
+    try { map.setTerrain({ source: 'dem', exaggeration: 2.2 }); } catch { /* بدون تضاريس */ }
+    for (const f of FARM_LOCATIONS) {
+      const el = document.createElement('div'); el.className = 'w3d-pin';
+      el.innerHTML = `<i></i><span>${FARM_NAMES[f.key] || ''}</span>`;
+      new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat([f.lng, f.lat]).addTo(map);
+    }
+    requestAnimationFrame(() => box.classList.add('on'));
+    if (still) { map.jumpTo({ center, zoom: 8.6, pitch: 45, bearing: -12 }); return; }
+    // الجولة: من الفضاء إلى منطقة المزارع، ثم كل مزرعة من قريب بزاوية مائلة، وتعاد
+    const stops = [{ center, zoom: 8.4, pitch: 50, bearing: -18 },
+      ...FARM_LOCATIONS.filter((f) => f.key !== 'ghamlas').map((f, i) => ({ center: [f.lng, f.lat], zoom: 15.3, pitch: 64, bearing: -40 + i * 55 })),
+      { center, zoom: 8.6, pitch: 48, bearing: 20 }];
+    let i = 0;
+    const next = () => {
+      if (!box.isConnected) return;
+      const st = stops[i % stops.length]; i += 1;
+      map.flyTo({ ...st, duration: i === 1 ? 7000 : 6500, curve: 1.5, essential: true });
+      map.once('moveend', () => { if (!box.isConnected) return;
+        map.easeTo({ bearing: st.bearing + 25, duration: 5000, easing: (t) => t }); map.once('moveend', () => setTimeout(next, 200)); });
+    };
+    setTimeout(next, 900);
+  });
+}
+
 // 1.31: صفحة الترحيب ثلاثية الأبعاد (خلف نموذج الدخول): صحراء وقت الغروب، دوائر زراعية بمرشّات محورية تدور،
 // نخيل، وسيارات الأسطول تمشي على الطرق بأضوائها، والكاميرا تنزل بلقطة سينمائية ثم تدور ببطء وتتبع الإصبع/الفأرة.
 // المكتبة (three.js، web/vendor) تُحمَّل عند الحاجة فقط؛ إن لم تتوفر (بدون إنترنت أو متصفح قديم) تبقى الخلفية المتحركة بـ CSS.
 const THREE_URL = '../vendor/three-0.169.0.module.min.js'; // نسخة محلية (MIT) حتى لا يعتمد الموقع على خدمة خارجية
 
-export async function startWelcome(host) {
-  if (!host || navigator.webdriver) return; // الاختبارات الآلية: بدون رسم ثقيل
+async function startScene(host) {
+  if (!host || !host.isConnected) return;
   let THREE;
   try { THREE = await import(THREE_URL); } catch { return; }
   if (!host.isConnected) return;

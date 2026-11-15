@@ -256,3 +256,45 @@
 }
 @keyframes w3d-word { from { opacity: 0; transform: translateY(.6em) rotateX(60deg); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
 @media (prefers-reduced-motion: reduce) { .w3d-title span, .w3d-kicker, .w3d-sub, .w3d-stats, :root[data-theme=dark] .login-card, :root[data-theme=dark] .w3d-fallback { animation: none !important; } }
+
+/* ===================== 1.33: الترحيب الحقيقي (صور القمر الصناعي) ===================== */
+:root[data-theme=dark] .w3d .w3d-map { position: absolute !important; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.8s ease; background: #020806; }
+:root[data-theme=dark] .w3d-map.on { opacity: 1; }
+.w3d-map .maplibregl-ctrl-attrib { background: rgba(0, 0, 0, .45) !important; color: #cfe8da; font-size: 10px; }
+.w3d-map .maplibregl-ctrl-attrib a { color: #cfe8da; }
+.w3d-map .maplibregl-ctrl-bottom-right { z-index: 1; }
+.w3d-pin { display: grid; justify-items: center; gap: 4px; pointer-events: none; }
+.w3d-pin span { font: 700 13px var(--font-display, var(--font)); color: #fff; padding: 4px 10px; border-radius: 99px; white-space: nowrap;
+  background: rgba(4, 14, 9, .72); border: 1px solid rgba(59, 224, 143, .55); box-shadow: 0 0 22px -4px rgba(59, 224, 143, .7); order: -1; }
+.w3d-pin i { width: 14px; height: 14px; border-radius: 50%; background: #3BE08F; box-shadow: 0 0 0 4px rgba(59, 224, 143, .3), 0 0 22px 6px rgba(59, 224, 143, .6);
+  animation: cc-blink 1.8s ease-in-out infinite; }
+
+/* ===================== 1.33: خريطة المزارع الحقيقية (لوحة التحكم) ===================== */
+.cc-stage.real { aspect-ratio: auto !important; height: clamp(360px, 52vh, 520px); border-radius: 14px; overflow: hidden; border: 1px solid rgba(59, 224, 143, .2); }
+.cc-stage .cc-real { position: absolute !important; inset: 0; width: 100%; height: 100%; } /* maplibre-gl.css يجعلها relative */
+.cc-real .maplibregl-ctrl-attrib { background: rgba(0, 0, 0, .45) !important; color: #cfe8da; font-size: 10px; }
+.cc-real .maplibregl-ctrl-attrib a { color: #cfe8da; }
+.cc-farm { position: relative; width: 0; height: 0; }
+.cc-farm-core { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 14px var(--font-display, var(--font)); color: #fff; background: rgba(4, 14, 9, .82); border: 2px solid #E9C47E;
+  box-shadow: 0 0 0 6px rgba(59, 224, 143, .18), 0 0 30px 6px rgba(59, 224, 143, .45); }
+.cc-farm-core::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid rgba(59, 224, 143, .6); animation: cc-pulse 2.6s ease-out infinite; }
+.cc-farm-name { all: unset; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); white-space: nowrap; cursor: pointer;
+  font: 700 13px var(--font-display, var(--font)); color: #fff; padding: 5px 12px; border-radius: 99px; background: rgba(4, 14, 9, .78);
+  border: 1px solid rgba(59, 224, 143, .5); box-shadow: 0 6px 20px -6px #000; }
+.cc-farm.f-ghamlas .cc-farm-name { bottom: auto; top: 30px; } /* بجانب المشتل: اسمها تحت حتى لا يتداخل */
+.cc-farm-name small { font-weight: 500; color: #E9C47E; }
+.cc-farm-name:hover, .cc-farm-name:focus-visible { border-color: #3BE08F; box-shadow: 0 0 22px -4px rgba(59, 224, 143, .8); }
+.cc-dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, .6);
+  box-shadow: 0 0 10px 1px currentColor; transition: scale .15s; }
+.cc-dot:hover, .cc-dot:focus-visible { scale: 1.6; outline: none; z-index: 2; }
+.cc-dot.pl-inside { background: #46D18A; color: #46D18A; } .cc-dot.pl-outside { background: #4C9BFF; color: #4C9BFF; } .cc-dot.pl-stopped { background: #93A39A; color: #93A39A; }
+.cc-dot.pl-accident { background: #FF6B5E; color: #FF6B5E; animation: cc-blink 1.2s ease-in-out infinite; } .cc-dot.pl-workshop { background: #F2B544; color: #F2B544; animation: cc-blink 1.2s ease-in-out infinite; }
+.cc-dot.pl-maintenance { background: #A487F7; color: #A487F7; }
+.cc-unplaced { display: grid; gap: 6px; margin-top: 8px; }
+.cc-off { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px dashed rgba(255, 255, 255, .14); }
+.cc-off-dots { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.cc-off .cc-dot { position: static; display: inline-block; }
+.cc-map-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; position: relative; z-index: 1; }
+.cc-tool { font: inherit; font-size: .82rem; font-weight: 600; color: #7DF0B4; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(59, 224, 143, .4); background: rgba(59, 224, 143, .08); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .cc-farm-core::after, .cc-dot, .w3d-pin i { animation: none !important; } }

@@ -12,8 +12,8 @@ export function renderLogin(root, onDone) {
         <div class="rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
         <div class="w3d-hero">
           <span class="w3d-kicker">شركة روى الرمال الزراعية</span>
-          <p class="w3d-title"><span>أسطولك</span> <span>كله</span> <span>في</span> <span>شاشة</span> <span>وحدة</span></p>
-          <p class="w3d-sub">السيارات والمعدات والوثائق والصيانة في مزارع الغملاس والبركة وارم، لحظة بلحظة.</p>
+          <p class="w3d-title"><span>مزارعك</span> <span>وأسطولك</span> <span>من</span> <span>السماء</span> <span>للأرض</span></p>
+          <p class="w3d-sub">صور قمر صناعي حقيقية لمزارع الغملاس والبركة وارم، والسيارات والمعدات والوثائق والصيانة لحظة بلحظة.</p>
           <ul class="w3d-stats"><li><b>24/7</b><span>متابعة مباشرة</span></li><li><b>3</b><span>مزارع ومشتل</span></li><li><b>PDF</b><span>تقارير جاهزة</span></li></ul>
         </div>
       </div>
