@@ -47,9 +47,9 @@ with sync_playwright() as p:
         if 'مشتل الغملاس' not in pg.inner_text('select[name=site]'): problems.append(f'[{tag}] site filter not narrowed')
         pg.select_option('select[name=company]', value='')
         # year is open: step back to 2025 and type 2031
-        pg.click('.step[data-step="-1"]'); pg.wait_for_selector('text=2025/10')
-        pg.fill('input[name=year]', '2031'); pg.press('input[name=year]', 'Enter'); pg.wait_for_selector('text=2031/10')
-        pg.fill('input[name=year]', '2026'); pg.press('input[name=year]', 'Enter'); pg.wait_for_selector('text=2026/10')
+        pg.click('.step[data-step="-1"]'); pg.wait_for_selector(f'text={_T0.year - 1}/{_T0.month:02d}')
+        pg.fill('input[name=year]', '2031'); pg.press('input[name=year]', 'Enter'); pg.wait_for_selector(f'text=2031/{_T0.month:02d}')
+        pg.fill('input[name=year]', str(_T0.year)); pg.press('input[name=year]', 'Enter'); pg.wait_for_selector(f'text={_T0.year}/{_T0.month:02d}')
         # search
         pg.fill('form.search input', '5678'); pg.press('form.search input', 'Enter')
         pg.wait_for_selector('text=نتائج البحث'); pg.wait_for_selector('td.plate')

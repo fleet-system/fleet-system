@@ -36,6 +36,14 @@ export async function renderSettings(el) {
       <p class="muted small">الشركات والمواقع تُعدَّل من صفحة <a href="#/sites">الشركات والمواقع</a>.</p>
     </section>
 
+    <section class="panel" data-theme-panel>
+      <div class="tab-head"><h2>شكل النظام</h2></div>
+      <p>«غرفة العمليات» واجهة داكنة متوهجة بألوان الشعار، و«الفاتح» الشكل السابق. الاختيار محفوظ على هذا الجهاز فقط.</p>
+      <div class="theme-switch" role="group" aria-label="شكل النظام">
+        <button type="button" class="btn ${raw(document.documentElement.dataset.theme === 'light' ? '' : 'on')}" data-theme-set="dark">غرفة العمليات (داكن)</button>
+        <button type="button" class="btn ${raw(document.documentElement.dataset.theme === 'light' ? 'on' : '')}" data-theme-set="light">الفاتح</button></div>
+    </section>
+
     <section class="panel push-panel" data-push>
       <div class="tab-head"><h2>إشعارات الجوال</h2><span class="tag t-missing" data-push-tag>…</span></div>
       <p>يصلك إشعار على هذا الجهاز كل صباح (06:30) بالوثائق المنتهية والقريبة من الانتهاء، وعند إرسال طلب صيانة للاعتماد (لمن يملك صلاحية الاعتماد).</p>
@@ -233,3 +241,15 @@ async function pushAction(b, el) {
   b.disabled = false;
   paintPush(el);
 }
+
+// 1.31: تبديل شكل النظام (داكن «غرفة العمليات» / فاتح)، يُحفظ على الجهاز
+export function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { if (t === 'light') localStorage.setItem('fleet-theme', 'light'); else localStorage.removeItem('fleet-theme'); } catch { /* وضع خاص */ }
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'light' ? '#1E4636' : '#040C08';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-set]'); if (!b) return;
+  setTheme(b.dataset.themeSet);
+  b.parentElement.querySelectorAll('[data-theme-set]').forEach((x) => x.classList.toggle('on', x === b));
+});

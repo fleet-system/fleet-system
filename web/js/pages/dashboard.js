@@ -5,13 +5,14 @@ import { toast } from '../ui.js';
 import { backupReminder } from './settings.js';
 import { PLACES, placeOf } from './vehicles.js';
 import { planCard, newPlan } from './renewal.js';
+import { fleetMap, bindFleetMap } from '../fleet-map.js';
 
 let lookups = null;
 async function getLookups() {
   if (!lookups) {
     const [companies, sites] = await Promise.all([
       api.get('companies', { select: 'id,name', order: 'name' }),
-      api.get('sites', { select: 'id,name,company_id', order: 'name' }),
+      api.get('sites', { select: 'id,name,company_id,is_active', order: 'name' }),
     ]);
     lookups = { companies, sites };
   }
@@ -89,7 +90,7 @@ async function loadBody(body, { companies, sites }) {
   const [s, follow, vrows, vdocRows, planRows] = await Promise.all([
     api.rpc('dashboard_stats', { p_company: state.company || null, p_site: state.site || null, p_year: state.year, p_month: state.month }),
     api.get('v_followups', { select: '*', ...filt }),
-    api.get('v_vehicles_overview', { select: 'id,code,plate_no,op_status,location_status', ...vfilt }).catch(() => null),
+    api.get('v_vehicles_overview', { select: 'id,code,plate_no,op_status,location_status,site_id', ...vfilt }).catch(() => null),
     api.get('v_document_status', { select: 'owner_id,doc_type,expiry_date,days_left', owner_type: 'eq.vehicle', doc_type: `in.(${VDOC_TYPES.join(',')})` }).catch(() => null),
     // خطة تجديد المركبة والمفوض (تظهر داخل بطاقة وثائق السيارات)
     api.get('v_renewal_plans', { select: '*', status: 'eq.active', order: 'created_at.desc' }).catch(() => null),
@@ -108,7 +109,9 @@ async function loadBody(body, { companies, sites }) {
   const period = `${state.year}/${String(state.month).padStart(2, '0')}`;
   const monthTotal = (+s.cost_maintenance_month) + (+s.cost_oil_month) + (+s.cost_accidents_month) + (+s.cost_housing_food_month);
 
+  const mapSites = sites.filter((x) => (!state.company || x.company_id === state.company) && (!state.site || x.id === state.site));
   body.innerHTML = html`
+    ${raw(fleetMap(vrows, mapSites))}
     <section class="panels">
       <article class="panel fleet" aria-labelledby="p-fleet">
         <header><h2 id="p-fleet">السيارات</h2><a href="#/vehicles" class="link">عرض السيارات</a></header>
@@ -170,6 +173,7 @@ ${raw(vdocs ? vdocsPanel(vdocs) : '')}
         ${raw(place[k] ? html`<a class="link" data-place-link href="#/vehicles?${new URLSearchParams({ place: k, ...(state.site ? { site: state.site } : {}), ...(state.company ? { company: state.company } : {}) })}">عرض بطاقات هذه السيارات ←</a>` : '')}`;
   });
   if (vdocs) bindVdocs(body.querySelector('[data-vdocs]'), vdocs);
+  bindFleetMap(body.querySelector('[data-fleet-map]'));
   body.removeAttribute('aria-busy');
   const pager = { limit: PAGE_ROWS }, tb = $('.followups tbody', body), more = $('.followups .fmore', body);
   if (tb) bindMore(more, pager, () => { tb.innerHTML = followRows(follow.slice(0, pager.limit), siteName, compName); more.innerHTML = String(moreRows(Math.min(pager.limit, follow.length), follow.length)); });

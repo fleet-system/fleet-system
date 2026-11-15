@@ -1,13 +1,21 @@
 import * as api from '../api.js';
 import { html, icon } from '../ui.js';
 import { errorText } from '../fmt.js';
+import { startWelcome } from '../welcome3d.js';
 
 export function renderLogin(root, onDone) {
   document.title = 'تسجيل الدخول — نظام إدارة الأسطول';
   root.innerHTML = html`
     <div class="login">
+      <div class="w3d" data-w3d aria-hidden="true"><div class="w3d-fallback"></div></div>
       <div class="login-side" aria-hidden="true">
         <div class="rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="w3d-hero">
+          <span class="w3d-kicker">شركة روى الرمال الزراعية</span>
+          <p class="w3d-title"><span>أسطولك</span> <span>كله</span> <span>في</span> <span>شاشة</span> <span>وحدة</span></p>
+          <p class="w3d-sub">السيارات والمعدات والوثائق والصيانة في مزارع الغملاس والبركة وارم، لحظة بلحظة.</p>
+          <ul class="w3d-stats"><li><b>24/7</b><span>متابعة مباشرة</span></li><li><b>3</b><span>مزارع ومشتل</span></li><li><b>PDF</b><span>تقارير جاهزة</span></li></ul>
+        </div>
       </div>
       <form class="login-card" novalidate>
         <div class="login-brand"><img src="logo.png" alt="شعار شركة روى الرمال الزراعية" width="624" height="640"></div>
@@ -40,4 +48,5 @@ export function renderLogin(root, onDone) {
     }
   });
   f.email.focus();
+  startWelcome(root.querySelector('[data-w3d]'));
 }
