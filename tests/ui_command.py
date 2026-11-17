@@ -49,12 +49,16 @@ with sync_playwright() as p:
     tile = os.path.join(OUT, 'tile.jpg'); _I.new('RGB', (256, 256), (190, 150, 100)).save(tile)
     for w, h in [(390, 844), (1360, 900)]:
         c, g = new_ctx(b, w, h, real=True)
-        g.route('**/World_Imagery/**', lambda r: r.fulfill(path=tile, content_type='image/jpeg', headers={'Access-Control-Allow-Origin': '*'}))
+        seen = []
+        g.route('**/World_Imagery/**', lambda r, *a: (seen.append(r.request.url), r.fulfill(path=tile, content_type='image/jpeg', headers={'Access-Control-Allow-Origin': '*'})))
         g.goto(BASE); g.wait_for_selector('form.login-card')
         try: g.wait_for_selector('.w3d-map.on', timeout=20000); real = True
         except Exception: real = False
         ok(real, f'[{w}] real satellite welcome shown')
         ok(g.locator('.w3d-pin').count() == 4, f'[{w}] 4 farm pins on the welcome globe')
+        g.wait_for_timeout(3000)
+        z15 = [u for u in seen if any(f'/tile/{z}/' in u for z in (13, 14, 15))]
+        ok(len(z15) >= 15, f'[{w}] farm close-up tiles prefetched before the camera arrives ({len(z15)})')
         g.wait_for_timeout(11000)
         ok(g.locator('.w3d-canvas').count() == 0 and g.locator('.w3d-map').count() == 1, f'[{w}] satellite kept (no fallback) when tiles load')
         ok(g.locator('.login-card button[type=submit]').is_visible(), f'[{w}] login usable over the globe')

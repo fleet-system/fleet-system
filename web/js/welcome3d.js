@@ -1,6 +1,6 @@
 // 1.33: الترحيب الحقيقي: الكرة الأرضية بصور القمر الصناعي ثم نزول سينمائي على مزارعكم الحقيقية (realmap.js)،
 // وإن لم تصل الصور (بدون إنترنت) أو لم يتوفر WebGL يعمل المشهد المرسوم أدناه، ثم بديل CSS.
-import { loadMapLib, webglOk, satStyle, autoDispose } from './realmap.js';
+import { loadMapLib, webglOk, satStyle, autoDispose, prefetchTiles } from './realmap.js';
 import { FARM_LOCATIONS } from './farm-locations.js';
 const FARM_NAMES = { nursery: 'مشتل الغملاس', ghamlas: 'مزرعة الغملاس', aram: 'مزرعة ارم', baraka: 'مزرعة البركة' };
 
@@ -32,18 +32,22 @@ export async function startWelcome(host) {
       new ml.Marker({ element: el, anchor: 'bottom' }).setLngLat([f.lng, f.lat]).addTo(map);
     }
     requestAnimationFrame(() => box.classList.add('on'));
+    // صور المزارع تُحمَّل مسبقاً بترتيب الجولة أثناء نزول الكاميرا من الفضاء
+    if (!still) prefetchTiles(FARM_LOCATIONS.filter((f) => f.key !== 'ghamlas').map((f) => [f.lng, f.lat]), undefined, () => box.isConnected);
     if (still) { map.jumpTo({ center, zoom: 8.6, pitch: 45, bearing: -12 }); return; }
     // الجولة: من الفضاء إلى منطقة المزارع، ثم كل مزرعة من قريب بزاوية مائلة، وتعاد
     const stops = [{ center, zoom: 8.4, pitch: 50, bearing: -18 },
-      ...FARM_LOCATIONS.filter((f) => f.key !== 'ghamlas').map((f, i) => ({ center: [f.lng, f.lat], zoom: 15.3, pitch: 64, bearing: -40 + i * 55 })),
+      ...FARM_LOCATIONS.filter((f) => f.key !== 'ghamlas').map((f, i) => ({ center: [f.lng, f.lat], zoom: 14.8, pitch: 56, bearing: -40 + i * 55 })),
       { center, zoom: 8.6, pitch: 48, bearing: 20 }];
     let i = 0;
+    // بعد كل نزول: انتظار اكتمال الصور (idle، بحد أقصى 4 ثوانٍ) قبل الدوران والانتقال، حتى لا تظهر فراغات
+    const whenReady = (fn) => { let done = false; const go = () => { if (!done) { done = true; fn(); } }; map.once('idle', go); setTimeout(go, 4000); };
     const next = () => {
       if (!box.isConnected) return;
       const st = stops[i % stops.length]; i += 1;
-      map.flyTo({ ...st, duration: i === 1 ? 7000 : 6500, curve: 1.5, essential: true });
-      map.once('moveend', () => { if (!box.isConnected) return;
-        map.easeTo({ bearing: st.bearing + 25, duration: 5000, easing: (t) => t }); map.once('moveend', () => setTimeout(next, 200)); });
+      map.flyTo({ ...st, duration: i === 1 ? 7000 : 7500, curve: 1.4, essential: true });
+      map.once('moveend', () => whenReady(() => { if (!box.isConnected) return;
+        map.easeTo({ bearing: st.bearing + 25, duration: 5000, easing: (t) => t }); map.once('moveend', () => setTimeout(next, 200)); }));
     };
     setTimeout(next, 900);
   });
