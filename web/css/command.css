@@ -204,12 +204,12 @@
 
 /* ===================== صفحة الترحيب ثلاثية الأبعاد (تسجيل الدخول) ===================== */
 .w3d { display: none; }
-:root[data-theme=dark] .login { position: relative; isolation: isolate; overflow: hidden; }
-:root[data-theme=dark] .w3d { display: block; position: absolute; inset: 0; z-index: -1; overflow: hidden; }
-:root[data-theme=dark] .w3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease; touch-action: pan-y; }
-:root[data-theme=dark] .w3d-canvas.on { opacity: 1; }
+:root:not([data-theme=light]) .login { position: relative; isolation: isolate; overflow: hidden; }
+:root:not([data-theme=light]) .w3d { display: block; position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+:root:not([data-theme=light]) .w3d-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.6s ease; touch-action: pan-y; }
+:root:not([data-theme=light]) .w3d-canvas.on { opacity: 1; }
 /* بديل بدون 3D: غروب صحراوي ودوائر زراعية متحركة بـ CSS */
-:root[data-theme=dark] .w3d-fallback { position: absolute; inset: 0;
+:root:not([data-theme=light]) .w3d-fallback { position: absolute; inset: 0;
   background:
     radial-gradient(circle at 30% 78%, rgba(63, 143, 78, .55) 0 9vmin, transparent 9.2vmin),
     radial-gradient(circle at 62% 70%, rgba(90, 164, 87, .5) 0 7vmin, transparent 7.2vmin),
@@ -218,27 +218,27 @@
     radial-gradient(60% 40% at 15% 55%, rgba(255, 190, 110, .55), transparent 70%),
     linear-gradient(180deg, #04100b 0%, #10291d 45%, #b77a3e 75%, #3b2e1f 100%);
   animation: cc-aurora 30s ease-in-out infinite alternate; }
-:root[data-theme=dark] .w3d::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+:root:not([data-theme=light]) .w3d::after { content: ''; position: absolute; inset: 0; pointer-events: none;
   background: linear-gradient(90deg, rgba(4, 12, 8, .2), rgba(4, 12, 8, .05) 40%, rgba(4, 12, 8, .55)), radial-gradient(ellipse at 50% 120%, transparent 40%, rgba(4, 12, 8, .6)); }
-:root[data-theme=dark] .login-side { background: transparent; }
-:root[data-theme=dark] .login-side .rows { display: none; }
-:root[data-theme=dark] .login-card { margin: 16px; width: min(420px, calc(100% - 32px)); border-radius: 24px; border: 1px solid rgba(59, 224, 143, .2);
+:root:not([data-theme=light]) .login-side { background: transparent; }
+:root:not([data-theme=light]) .login-side .rows { display: none; }
+:root:not([data-theme=light]) .login-card { margin: 16px; width: min(420px, calc(100% - 32px)); border-radius: 24px; border: 1px solid rgba(59, 224, 143, .2);
   background: rgba(6, 18, 12, .62); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, .9), 0 0 60px -20px rgba(59, 224, 143, .35);
   animation: cc-rise 1s cubic-bezier(.2, .8, .2, 1) both .5s; }
-:root[data-theme=dark] .login-card h1 { color: #fff; }
-:root[data-theme=dark] .login-brand img { background: #fff; box-shadow: 0 0 0 1px rgba(59, 224, 143, .4), 0 0 40px -6px rgba(59, 224, 143, .55); }
-:root[data-theme=dark] .login-brand { width: min(150px, 45%); }
+:root:not([data-theme=light]) .login-card h1 { color: #fff; }
+:root:not([data-theme=light]) .login-brand img { background: #fff; box-shadow: 0 0 0 1px rgba(59, 224, 143, .4), 0 0 40px -6px rgba(59, 224, 143, .55); }
+:root:not([data-theme=light]) .login-brand { width: min(150px, 45%); }
 @media (max-width: 999px) {
-  :root[data-theme=dark] .login { align-content: end; }
-  :root[data-theme=dark] .login-card { padding: 22px 18px; gap: 12px; margin-top: 30vh; }
-  :root[data-theme=dark] .login-brand { width: 84px; }
-  :root[data-theme=dark] .login-card h1 { font-size: 1.3rem; }
+  :root:not([data-theme=light]) .login { align-content: end; }
+  :root:not([data-theme=light]) .login-card { padding: 22px 18px; gap: 12px; margin-top: 30vh; }
+  :root:not([data-theme=light]) .login-brand { width: 84px; }
+  :root:not([data-theme=light]) .login-card h1 { font-size: 1.3rem; }
 }
 .w3d-hero { display: none; }
 @media (min-width: 1000px) {
-  :root[data-theme=dark] .login { grid-template-columns: 1.25fr 1fr; }
-  :root[data-theme=dark] .login-side { display: flex; align-items: flex-end; padding: 56px; }
-  :root[data-theme=dark] .w3d-hero { display: grid; gap: 14px; max-width: 620px; color: #fff; }
+  :root:not([data-theme=light]) .login { grid-template-columns: 1.25fr 1fr; }
+  :root:not([data-theme=light]) .login-side { display: flex; align-items: flex-end; padding: 56px; }
+  :root:not([data-theme=light]) .w3d-hero { display: grid; gap: 14px; max-width: 620px; color: #fff; }
   .w3d-kicker { justify-self: start; font-size: .82rem; font-weight: 700; letter-spacing: .12em; color: var(--sand); padding: 4px 12px; border: 1px solid rgba(233, 196, 126, .5); border-radius: 99px;
     background: rgba(4, 12, 8, .35); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: cc-rise .8s both .3s; }
   .w3d-title { margin: 0; font-size: clamp(2.6rem, 4.6vw, 4.4rem); font-weight: 700; line-height: 1.1; text-shadow: 0 6px 40px rgba(0, 0, 0, .6); }
@@ -252,14 +252,14 @@
     -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
   .w3d-stats b { font-size: 1.4rem; color: #7DF0B4; font-variant-numeric: tabular-nums; }
   .w3d-stats span { font-size: .8rem; color: rgba(231, 242, 235, .75); }
-  :root[data-theme=dark] .login-card { margin: 32px; }
+  :root:not([data-theme=light]) .login-card { margin: 32px; }
 }
 @keyframes w3d-word { from { opacity: 0; transform: translateY(.6em) rotateX(60deg); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
-@media (prefers-reduced-motion: reduce) { .w3d-title span, .w3d-kicker, .w3d-sub, .w3d-stats, :root[data-theme=dark] .login-card, :root[data-theme=dark] .w3d-fallback { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .w3d-title span, .w3d-kicker, .w3d-sub, .w3d-stats, :root:not([data-theme=light]) .login-card, :root:not([data-theme=light]) .w3d-fallback { animation: none !important; } }
 
 /* ===================== 1.33: الترحيب الحقيقي (صور القمر الصناعي) ===================== */
-:root[data-theme=dark] .w3d .w3d-map { position: absolute !important; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.8s ease; background: #020806; }
-:root[data-theme=dark] .w3d-map.on { opacity: 1; }
+:root:not([data-theme=light]) .w3d .w3d-map { position: absolute !important; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.8s ease; background: #020806; }
+:root:not([data-theme=light]) .w3d-map.on { opacity: 1; }
 .w3d-map .maplibregl-ctrl-attrib { background: rgba(0, 0, 0, .45) !important; color: #cfe8da; font-size: 10px; }
 .w3d-map .maplibregl-ctrl-attrib a { color: #cfe8da; }
 .w3d-map .maplibregl-ctrl-bottom-right { z-index: 1; }
@@ -298,3 +298,7 @@
 .cc-map-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; position: relative; z-index: 1; }
 .cc-tool { font: inherit; font-size: .82rem; font-weight: 600; color: #7DF0B4; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(59, 224, 143, .4); background: rgba(59, 224, 143, .08); cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .cc-farm-core::after, .cc-dot, .w3d-pin i { animation: none !important; } }
+
+/* 1.32: ترحيب أعلى لوحة التحكم */
+.page-head .greet { margin: 0 0 -8px; color: var(--muted); font-weight: 500; }
+@media print { .page-head .greet { display: none; } }

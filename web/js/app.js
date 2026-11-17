@@ -42,10 +42,10 @@ export const NAV = [
   { id: 'delegates',   t: 'المفوّضون',                 ic: 'people',    phase: 3, hidden: true },
   { id: 'oil',         t: 'تغيير الزيت',               ic: 'oil',       phase: 4 },
   { id: 'requests',    t: 'طلب صيانة',                 ic: 'wrench',    phase: 4 },
-  { id: 'accidents',   t: 'الحوادث',                   ic: 'alert',     phase: 4 },
+  { id: 'accidents',   t: 'الحوادث',                   ic: 'alert',     phase: 4, hidden: true },  // 1.32: مخفي من القائمة بطلب المالك؛ الصفحة والبيانات باقية
   { id: 'handovers',   t: 'استلام وتسليم السيارات',     ic: 'swap',      phase: 4 },
-  { id: 'housing',     t: 'صيانة سكن العمال',          ic: 'home',      phase: 5 },
-  { id: 'food',        t: 'توريد الطعام',              ic: 'food',      phase: 5 },
+  { id: 'housing',     t: 'صيانة سكن العمال',          ic: 'home',      phase: 5, hidden: true },  // 1.32: مخفي من القائمة بطلب المالك؛ الصفحة والبيانات باقية
+  { id: 'food',        t: 'توريد الطعام',              ic: 'food',      phase: 5, hidden: true },  // 1.32: مخفي من القائمة بطلب المالك؛ الصفحة والبيانات باقية
   { id: 'attachments', t: 'الفواتير والمرفقات',        ic: 'invoice',   phase: 5 },
   { id: 'reports',     t: 'التقارير',                  ic: 'chart',     phase: 7 },
   { id: 'excel',       t: 'Excel: الاستيراد والتصدير', ic: 'table',     phase: 7 },
@@ -57,7 +57,7 @@ export const NAV = [
 const TABS = ['dashboard', 'vehicles', 'requests', 'documents'];
 const ADD_MENU = [
   ['vehicles?new=1', 'سيارة'], ['employees?new=1', 'موظف'], ['oil?new=1', 'تغيير زيت'], ['requests?new=1', 'طلب صيانة'],
-  ['accidents?new=1', 'حادث'], ['handovers?new=1', 'نموذج استلام أو تسليم'], ['housing?new=1', 'صيانة سكن'], ['food?new=1', 'توريد طعام'],
+  ['handovers?new=1', 'نموذج استلام أو تسليم'],  // 1.32: أُخفيت الحوادث وسكن العمال وتوريد الطعام من القوائم
 ];
 
 const root = document.getElementById('app');

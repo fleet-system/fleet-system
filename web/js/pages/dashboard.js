@@ -36,6 +36,7 @@ export async function renderDashboard(el) {
 
   el.innerHTML = html`
     <div class="page-head">
+      <p class="greet">${new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير'}، ${(api.currentUser()?.full_name || '').split(' ')[0]}</p>
       <h1>لوحة التحكم</h1>
       <form class="filters" aria-label="تصفية لوحة التحكم">
         <label><span>الشركة</span><select name="company">${raw(opt('', 'كل الشركات', state.company))}${raw(companies.map((c) => opt(c.id, c.name, state.company)).join(''))}</select></label>

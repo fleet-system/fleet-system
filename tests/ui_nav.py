@@ -16,7 +16,8 @@ with sync_playwright() as p:
         g.goto(BASE); g.wait_for_selector('form.login-card'); g.fill('input[name=email]', 'admin@test.local'); g.fill('input[name=password]', 'test1234'); g.click('button[type=submit]'); g.wait_for_selector('.panels')
         tag = 'desktop' if w > 600 else 'mobile'
         ok(g.locator('.sidebar [data-nav=employees], .tabbar [data-nav=employees], .sheet [data-nav=employees]').count() == 0, f'{tag}: no «الموظفون» in side menu, bottom bar or «المزيد»')
-        others = ['dashboard', 'sites', 'vehicles', 'documents', 'oil', 'requests', 'accidents', 'handovers', 'housing', 'food', 'attachments', 'reports', 'excel', 'users', 'audit', 'settings']
+        ok(all(g.locator(f'.sidebar [data-nav={x}], .tabbar [data-nav={x}], .sheet [data-nav={x}]').count() == 0 for x in ['accidents', 'housing', 'food']), f'{tag}: الحوادث/سكن العمال/توريد الطعام hidden from menus (1.32)')
+        others = ['dashboard', 'sites', 'vehicles', 'documents', 'oil', 'requests', 'handovers', 'attachments', 'reports', 'excel', 'users', 'audit', 'settings']
         ok(all(g.locator(f'.sidebar [data-nav={x}], .sheet [data-nav={x}]').count() >= 1 for x in others), f'{tag}: every other section still in the menu ({len(others)})')
         if w > 600:
             for x in others:

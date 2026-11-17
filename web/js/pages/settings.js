@@ -38,10 +38,9 @@ export async function renderSettings(el) {
 
     <section class="panel" data-theme-panel>
       <div class="tab-head"><h2>شكل النظام</h2></div>
-      <p>«غرفة العمليات» واجهة داكنة متوهجة بألوان الشعار، و«الفاتح» الشكل السابق. الاختيار محفوظ على هذا الجهاز فقط.</p>
+      <p>«الزجاجي» زجاج مصنفر بألوان دافئة (الافتراضي)، و«غرفة العمليات» داكنة متوهجة، و«الفاتح» الشكل القديم. الاختيار محفوظ على هذا الجهاز فقط.</p>
       <div class="theme-switch" role="group" aria-label="شكل النظام">
-        <button type="button" class="btn ${raw(document.documentElement.dataset.theme === 'light' ? '' : 'on')}" data-theme-set="dark">غرفة العمليات (داكن)</button>
-        <button type="button" class="btn ${raw(document.documentElement.dataset.theme === 'light' ? 'on' : '')}" data-theme-set="light">الفاتح</button></div>
+        ${raw(THEMES.map(([k, l]) => `<button type="button" class="btn ${(document.documentElement.dataset.theme || 'glass') === k ? 'on' : ''}" data-theme-set="${k}">${l}</button>`).join(''))}</div>
     </section>
 
     <section class="panel push-panel" data-push>
@@ -242,11 +241,14 @@ async function pushAction(b, el) {
   paintPush(el);
 }
 
-// 1.31: تبديل شكل النظام (داكن «غرفة العمليات» / فاتح)، يُحفظ على الجهاز
+// 1.32: تبديل شكل النظام (زجاجي افتراضي / داكن / فاتح)، يُحفظ على الجهاز
+const THEMES = [['glass', 'الزجاجي (افتراضي)'], ['dark', 'غرفة العمليات (داكن)'], ['light', 'الفاتح']];
+const THEME_BAR = { glass: '#C9B6A4', dark: '#040C08', light: '#1E4636' };
 export function setTheme(t) {
+  if (!THEME_BAR[t]) t = 'glass';
   document.documentElement.dataset.theme = t;
-  try { if (t === 'light') localStorage.setItem('fleet-theme', 'light'); else localStorage.removeItem('fleet-theme'); } catch { /* وضع خاص */ }
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'light' ? '#1E4636' : '#040C08';
+  try { if (t === 'glass') localStorage.removeItem('fleet-theme'); else localStorage.setItem('fleet-theme', t); } catch { /* وضع خاص */ }
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = THEME_BAR[t];
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme-set]'); if (!b) return;

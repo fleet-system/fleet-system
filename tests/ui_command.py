@@ -24,7 +24,7 @@ with sync_playwright() as p:
     for w, h in [(390, 844), (1360, 900)]:
         c, g = new_ctx(b, w, h, real=True)
         g.goto(BASE); g.wait_for_selector('form.login-card')
-        ok(g.evaluate("document.documentElement.dataset.theme") == 'dark', f'[{w}] dark (command center) is the default')
+        ok(g.evaluate("document.documentElement.dataset.theme") == 'glass', f'[{w}] warm glass is the default (1.32)')
         ok(g.locator('.w3d .w3d-fallback').count() == 1, f'[{w}] CSS fallback scene present')
         try: g.wait_for_selector('.w3d-canvas.on', timeout=20000); drew = True
         except Exception: drew = False
@@ -109,20 +109,32 @@ with sync_playwright() as p:
     g.goto(f'{BASE}#/dashboard?r=1'); g.wait_for_selector('[data-fleet-map] [data-car]')
     ok('pl-accident' in (g.get_attribute(f'[data-fleet-map] [href="#/vehicles/{vid}"]', 'class') or ''), 'status change in the database shows on the map')
 
-    # 5) تبديل الشكل من الإعدادات (يُحفظ على الجهاز)
+    # 5) 1.32: الزجاجي الدافئ افتراضي + تبديل الشكل من الإعدادات (يُحفظ على الجهاز)
+    g.goto(f'{BASE}#/dashboard'); g.wait_for_selector('.panels')
+    ok(g.evaluate("document.documentElement.dataset.theme") == 'glass', 'glass is the default theme')
+    ok('blur' in g.evaluate("getComputedStyle(document.querySelector('.panel')).backdropFilter"), 'glass: panels are frosted (backdrop blur)')
+    ok(g.evaluate("getComputedStyle(document.querySelector('.panel')).backgroundColor").startswith('rgba('), 'glass: panels are translucent')
+    ok(g.locator('.page-head .greet').is_visible() and ('صباح الخير' in g.inner_text('.greet') or 'مساء الخير' in g.inner_text('.greet')), 'greeting shown on dashboard')
+    for hid in ['accidents', 'housing', 'food']:
+        ok(g.locator(f'.nav [data-nav="{hid}"], .nav a[href="#/{hid}"], .pop-add a[href^="#/{hid}"]').count() == 0, f'menu: «{hid}» hidden (owner request)')
     g.goto(f'{BASE}#/settings'); g.wait_for_selector('[data-theme-panel]')
+    ok(g.locator('[data-theme-set]').count() == 3 and g.locator('[data-theme-set=glass].on').count() == 1, 'settings: 3 looks, glass selected')
+    bg_glass = g.evaluate("getComputedStyle(document.body).backgroundColor")
+    g.click('[data-theme-set=dark]'); g.reload(); g.wait_for_selector('[data-theme-panel]')
+    ok(g.evaluate("document.documentElement.dataset.theme") == 'dark', 'dark choice kept after reload')
     bg_dark = g.evaluate("getComputedStyle(document.body).backgroundColor")
     g.click('[data-theme-set=light]')
     ok(g.evaluate("document.documentElement.dataset.theme") == 'light', 'switch to light')
     bg_light = g.evaluate("getComputedStyle(document.body).backgroundColor")
-    ok(bg_dark != bg_light, f'body color changes ({bg_dark} → {bg_light})')
+    ok(len({bg_glass, bg_dark, bg_light}) == 3, f'body color differs per look ({bg_glass} / {bg_dark} / {bg_light})')
     g.reload(); g.wait_for_selector('[data-theme-panel]')
     ok(g.evaluate("document.documentElement.dataset.theme") == 'light', 'light choice kept after reload')
     ok(g.evaluate("document.querySelector('meta[name=theme-color]').content") == '#1E4636', 'light: phone bar color restored')
     g.screenshot(path=f'{OUT}/settings-light.png', full_page=True)
-    g.click('[data-theme-set=dark]'); g.reload(); g.wait_for_selector('[data-theme-panel]')
-    ok(g.evaluate("document.documentElement.dataset.theme") == 'dark', 'back to dark after reload')
-    # الطباعة تبقى فاتحة: قواعد الوضع الداكن داخل @media screen
+    g.click('[data-theme-set=glass]'); g.reload(); g.wait_for_selector('[data-theme-panel]')
+    ok(g.evaluate("document.documentElement.dataset.theme") == 'glass', 'back to glass after reload')
+    ok(g.evaluate("document.querySelector('meta[name=theme-color]').content") == '#C9B6A4', 'glass: phone bar color')
+    # الطباعة تبقى فاتحة: قواعد الأشكال داخل @media screen
     g.emulate_media(media='print')
     ok(g.evaluate("getComputedStyle(document.body).backgroundColor") in ('rgb(255, 255, 255)', 'rgb(241, 244, 240)'), 'print stays light')
     c.close()

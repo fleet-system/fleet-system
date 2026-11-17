@@ -40,7 +40,7 @@ with sync_playwright() as p:
     ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2, locale='ar-SA', timezone_id='Asia/Riyadh')
     pg = ctx.new_page()
     pg.on('pageerror', lambda e: problems.append(f'page error: {e}'))
-    pg.on('console', lambda m: m.type == 'error' and 'ERR_FAILED' not in m.text and '400' not in m.text and problems.append(f'console: {m.text}'))
+    pg.on('console', lambda m: m.type == 'error' and 'ERR_FAILED' not in m.text and 'ERR_TUNNEL_CONNECTION_FAILED' not in m.text and 'arcgisonline.com' not in m.text and 'elevation-tiles' not in m.text and '400' not in m.text and problems.append(f'console: {m.text}'))
     pg.route('**/fonts.googleapis.com/**', lambda r: r.abort())
     login(pg, 'admin@test.local')
 

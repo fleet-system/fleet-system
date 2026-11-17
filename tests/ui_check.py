@@ -12,7 +12,7 @@ BASE = 'http://localhost:8787/'
 problems = []
 
 def watch(page, tag):
-    page.on('console', lambda m: m.type in ('error', 'warning') and 'ERR_FAILED' not in m.text and not (tag and '400' in m.text) and problems.append(f'[{tag}] console {m.type}: {m.text}'))
+    page.on('console', lambda m: m.type in ('error', 'warning') and 'ERR_FAILED' not in m.text and 'ERR_TUNNEL_CONNECTION_FAILED' not in m.text and 'arcgisonline.com' not in m.text and 'elevation-tiles' not in m.text and not (tag and '400' in m.text) and problems.append(f'[{tag}] console {m.type}: {m.text}'))
     page.on('pageerror', lambda e: problems.append(f'[{tag}] page error: {e}'))
 
 with sync_playwright() as p:

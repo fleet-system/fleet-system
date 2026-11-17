@@ -1,0 +1,139 @@
+/* 1.32: «زجاجي دافئ» (طلب المالك بفيديو مرجعي): ألوان الموقع مثل لوحات الزجاج المصنفر فوق غرفة دافئة —
+   زجاج كريمي شفاف، نص فحمي، أزرار سوداء على شكل حبة، أخضر زمردي وبرتقالي للمؤشرات. الافتراضي لكل الصفحات.
+   يعمل فقط مع <html data-theme="glass">، ويبني على الأنماط الفاتحة في app.css. الطباعة كما هي (داخل @media screen). */
+@media screen {
+:root[data-theme=glass] {
+  --bg: #C9B6A4;
+  --panel: rgba(251, 246, 240, .62);
+  --panel-solid: #F6EFE7;
+  --ink: #1D1714;
+  --muted: #6E6056;
+  --line: rgba(70, 45, 30, .12);
+  --field: rgba(70, 45, 30, .18);
+  --palm: #1D1714;          /* الأزرار الرئيسية: أسود دافئ */
+  --palm-2: #3A2E27;
+  --palm-ink: rgba(255, 255, 255, .6);
+  --leaf: #E9DED3;
+  --forest: #2A211C;
+  --sand: #E8642F;          /* لمسة برتقالية للقسم الحالي */
+  --emerald: #14986B;
+  --ok: #14986B;
+  --warn: #C47A10;
+  --bad: #D2452F;
+  --idle: #9A8C82;
+  --warn-bg: rgba(248, 233, 210, .85);
+  --bad-bg: rgba(247, 220, 213, .85);
+  --r: 22px;
+  --r-sm: 14px;
+  --glass-blur: saturate(1.35) blur(22px);
+  --lift: 0 1px 0 rgba(255, 255, 255, .75) inset, 0 22px 44px -26px rgba(60, 35, 20, .55);
+}
+:root[data-theme=glass] body { background: var(--bg); color: var(--ink); }
+/* خلفية «غرفة دافئة» مصنفرة (ثابتة خلف الصفحة؛ تعمل على الآيفون أيضاً) */
+:root[data-theme=glass] body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(42% 38% at 12% 8%, rgba(110, 80, 62, .85), transparent 72%),
+    radial-gradient(38% 46% at 92% 14%, rgba(242, 233, 223, .95), transparent 70%),
+    radial-gradient(50% 42% at 78% 96%, rgba(92, 66, 52, .8), transparent 72%),
+    radial-gradient(46% 40% at 6% 86%, rgba(184, 160, 140, .9), transparent 72%),
+    radial-gradient(30% 24% at 55% 40%, rgba(255, 248, 240, .55), transparent 75%),
+    linear-gradient(165deg, #D9C9B9 0%, #C2AC98 55%, #A78E7A 100%); }
+:root[data-theme=glass] ::selection { background: rgba(232, 100, 47, .25); }
+:root[data-theme=glass] a:not([class]), :root[data-theme=glass] .link { color: #0F7A55; }
+
+/* الزجاج المصنفر: البطاقات والجداول والنوافذ */
+:root[data-theme=glass] .panel, :root[data-theme=glass] .table-wrap, :root[data-theme=glass] .upcoming, :root[data-theme=glass] .card,
+:root[data-theme=glass] .vcard-sec, :root[data-theme=glass] .rn-step, :root[data-theme=glass] .rn-card, :root[data-theme=glass] .rn-prog,
+:root[data-theme=glass] .rn-note, :root[data-theme=glass] .empty.soft {
+  background: var(--panel); border: 1px solid rgba(255, 255, 255, .55); box-shadow: var(--lift);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+:root[data-theme=glass] .panel { transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s; }
+@media (hover: hover) { :root[data-theme=glass] .panel:hover { transform: translateY(-3px); box-shadow: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 30px 54px -26px rgba(60, 35, 20, .6); } }
+:root[data-theme=glass] .modal-panel, :root[data-theme=glass] .sheet-panel, :root[data-theme=glass] .pop {
+  background: rgba(250, 244, 237, .9); border: 1px solid rgba(255, 255, 255, .6);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+:root[data-theme=glass] .sheet, :root[data-theme=glass] .modal { background: rgba(45, 30, 22, .35); }
+:root[data-theme=glass] .rn-section { background: rgba(255, 250, 242, .45); border-color: rgba(232, 100, 47, .45); }
+:root[data-theme=glass] .rn-step.next { background: rgba(255, 246, 232, .75); }
+:root[data-theme=glass] .tag { background: rgba(255, 255, 255, .55); }
+:root[data-theme=glass] .count, :root[data-theme=glass] .up-ic { background: rgba(255, 255, 255, .6); color: var(--ink); }
+:root[data-theme=glass] .rn-plans-link { background: rgba(20, 152, 107, .14); color: #0F7A55; }
+:root[data-theme=glass] .rn-note-mini { background: rgba(255, 246, 225, .8); }
+:root[data-theme=glass] .log tbody tr:hover, :root[data-theme=glass] .pop-item:hover { background: rgba(255, 255, 255, .45); }
+:root[data-theme=glass] .place-btn:hover, :root[data-theme=glass] .place-btn.on, :root[data-theme=glass] .vdoc-row:hover,
+:root[data-theme=glass] .place-chip { background: rgba(255, 255, 255, .5); }
+:root[data-theme=glass] .vc-bar { background: rgba(70, 45, 30, .1); }
+:root[data-theme=glass] .vc-none { background: #D4C6BA; }
+:root[data-theme=glass] .pl-outside { background: #2F6FD0; }
+
+/* خريطة المزارع: إطار زجاجي داكن دافئ حول صور القمر الصناعي */
+:root[data-theme=glass] .cc-map { background: rgba(29, 23, 20, .82); border: 1px solid rgba(255, 255, 255, .45);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: 0 26px 50px -26px rgba(40, 22, 12, .7); }
+
+/* الأرقام والعناوين */
+:root[data-theme=glass] h1 { color: var(--ink); }
+:root[data-theme=glass] .big .num { color: var(--ink); }
+:root[data-theme=glass] .costs .big .num { color: #B4481E; }
+
+/* ترحيب كبير مثل المرجع («صباح الخير، …») */
+:root[data-theme=glass] .page-head .greet { margin: 0 0 -10px; font: 600 clamp(1.5rem, 3.2vw, 2.1rem)/1.25 var(--font-display, var(--font)); color: var(--ink); letter-spacing: -.01em; }
+:root[data-theme=glass] .page-head .greet + h1 { font-size: 1rem; font-weight: 500; color: var(--muted); }
+
+/* الأزرار: حبة سوداء للرئيسي، وزجاج أبيض للباقي (مثل المرجع) */
+:root[data-theme=glass] .btn { border-radius: 999px; background: rgba(255, 255, 255, .55); border-color: rgba(255, 255, 255, .7); color: var(--ink);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+:root[data-theme=glass] .btn:hover { background: rgba(255, 255, 255, .78); border-color: #fff; }
+:root[data-theme=glass] .btn-primary { background: var(--palm); border-color: var(--palm); color: #fff; box-shadow: 0 10px 22px -12px rgba(29, 23, 20, .8); }
+:root[data-theme=glass] .btn-primary:hover { background: var(--palm-2); border-color: var(--palm-2); }
+:root[data-theme=glass] .btn-danger, :root[data-theme=glass] .btn.danger { color: var(--bad); }
+:root[data-theme=glass] .icon-btn:hover { background: rgba(255, 255, 255, .55); }
+:root[data-theme=glass] input, :root[data-theme=glass] select, :root[data-theme=glass] textarea {
+  background: rgba(255, 255, 255, .62); border-color: rgba(70, 45, 30, .16); color: var(--ink); }
+:root[data-theme=glass] input:focus, :root[data-theme=glass] select:focus, :root[data-theme=glass] textarea:focus {
+  background: rgba(255, 255, 255, .85); border-color: var(--ink); box-shadow: 0 0 0 4px rgba(29, 23, 20, .1); }
+:root[data-theme=glass] .rn-chip { background: rgba(255, 255, 255, .5); }
+:root[data-theme=glass] .rn-chip.on, :root[data-theme=glass] .rn-count { background: var(--palm); color: #fff; border-color: var(--palm); }
+:root[data-theme=glass] .rn-bar span { background: var(--emerald); }
+:root[data-theme=glass] .toast-ok { background: var(--palm); }
+:root[data-theme=glass] :focus-visible { outline-color: #E8642F; }
+
+/* الشريط العلوي والبحث */
+:root[data-theme=glass] .search input, :root[data-theme=glass] .search input:focus, :root[data-theme=glass] .stepper input {
+  background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-theme=glass] .topbar { background: rgba(251, 246, 240, .55); border-bottom-color: rgba(255, 255, 255, .5);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+:root[data-theme=glass] .tb-title > .tb-company { color: var(--ink); }
+:root[data-theme=glass] .search { background: rgba(255, 255, 255, .5); }
+:root[data-theme=glass] .search:focus-within { background: rgba(255, 255, 255, .85); border-color: var(--ink); box-shadow: 0 0 0 4px rgba(29, 23, 20, .08); }
+
+/* شريط التنقل في الجوال: حبة زجاجية والقسم الحالي أسود */
+:root[data-theme=glass] .tabbar { background: rgba(251, 246, 240, .7); border: 1px solid rgba(255, 255, 255, .6);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: 0 18px 38px -16px rgba(60, 35, 20, .55); }
+:root[data-theme=glass] .tab { color: var(--muted); }
+:root[data-theme=glass] .tab.active { color: #fff; background: var(--palm); }
+:root[data-theme=glass] .tab.active .ic { color: #fff; }
+:root[data-theme=glass] .nav-link.sheet-link { background: rgba(255, 255, 255, .5); border-color: rgba(255, 255, 255, .6); }
+:root[data-theme=glass] .nav-link.sheet-link.active { background: var(--palm); color: #fff; border-color: var(--palm); }
+
+/* الدخول: صورة القمر الصناعي خلف بطاقة زجاج كريمية */
+:root[data-theme=glass] .login-card { background: rgba(251, 246, 240, .72); border: 1px solid rgba(255, 255, 255, .65); color: var(--ink);
+  -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: 0 30px 70px -24px rgba(30, 18, 10, .7); }
+:root[data-theme=glass] .login-card h1 { color: var(--ink); }
+:root[data-theme=glass] .login-brand img { background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, .8), 0 14px 30px -12px rgba(30, 18, 10, .6); }
+:root[data-theme=glass] .w3d::after { background: linear-gradient(90deg, rgba(40, 26, 18, .15), rgba(40, 26, 18, .02) 40%, rgba(40, 26, 18, .45)),
+  radial-gradient(ellipse at 50% 120%, transparent 40%, rgba(40, 26, 18, .5)); }
+
+/* الكمبيوتر: قائمة جانبية زجاجية */
+@media (min-width: 1000px) {
+  :root[data-theme=glass] .sidebar { background: rgba(251, 246, 240, .42); border-inline-end: 1px solid rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+  :root[data-theme=glass] .sidebar, :root[data-theme=glass] .brand, :root[data-theme=glass] .brand b { color: var(--ink); }
+  :root[data-theme=glass] .brand small { color: var(--muted); }
+  :root[data-theme=glass] .nav-link { color: #4A3D35; }
+  :root[data-theme=glass] .nav-link:hover { background: rgba(255, 255, 255, .5); color: var(--ink); }
+  :root[data-theme=glass] .nav-link.active { background: var(--palm); color: #fff; }
+  :root[data-theme=glass] .nav-link.active::before { background: var(--sand); }
+  :root[data-theme=glass] .nav-link.active .ic { color: #fff; }
+}
+@media (prefers-reduced-motion: reduce) { :root[data-theme=glass] .panel { transition: none; } }
+}
