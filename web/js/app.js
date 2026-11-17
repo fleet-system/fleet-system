@@ -30,7 +30,7 @@ import { renderCosts } from './pages/costs.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.34';
+export const VERSION = '1.35';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [

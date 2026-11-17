@@ -99,6 +99,12 @@ with sync_playwright() as p:
        'upload in page: full file -> 6 active (row back in Excel restored), nothing deleted')
     ok(sql("select line_date from cost_lines where invoice_no = 'T-2'") == '2026-11-10', 'upload in page: date read correctly (2026-11-10)')
     g.wait_for_selector('[data-cost-total]'); ok(g.inner_text('[data-cost-total]').replace(',', '') == '2900.50', f"page total after upload = 2900.50 ({g.inner_text('[data-cost-total]')})")
+    # 1.35: المزامنة اللحظية: تحديث يصل من برنامج اللابتوب (دالة cost-sync) يظهر في الصفحة المفتوحة تلقائياً
+    sql("""select sync_cost_lines('[{"category":"batteries","source_sheet":"البطاريات","source_row":3,"plate":"X 9999","amount":300,"date":"2026-11-12","description":"بطارية وهمية"}]'::jsonb, null)""")
+    for _ in range(45):
+        if g.inner_text('[data-cost-total]').replace(',', '') == '3200.50': break
+        g.wait_for_timeout(1000)
+    ok(g.inner_text('[data-cost-total]').replace(',', '') == '3200.50', f"open page refreshed itself after a live sync = 3200.50 ({g.inner_text('[data-cost-total]')})")
     c.close()
     # الكتابة المباشرة من المتصفح ممنوعة
     c = b.new_context(); g = c.new_page(); g.goto(BASE); g.wait_for_selector('form.login-card')
@@ -106,7 +112,22 @@ with sync_playwright() as p:
     st = g.evaluate("""async () => { const m = await import('./js/api.js'); try { await m.insert('cost_lines', [{ category: 'oil', source_sheet: 'x', source_row: 1, amount: 1 }]); return 'inserted'; } catch (e) { return 'blocked'; } }""")
     ok(st == 'blocked', 'browser cannot insert into cost_lines directly')
     c.close(); b.close()
-ok(sql("select count(*) from cost_lines") == '6', 'rows after UI tests: 6 (nothing deleted)')
+ok(sql("select count(*) from cost_lines") == '7', 'rows after UI tests: 7 (nothing deleted)')
+
+# 1.35: القارئ الخفيف (دالة cost-sync) يعطي نفس صفوف أداة Python، ونسخة الدالة مطابقة لنسخة الموقع
+ROOT = os.path.join(HERE, '..')
+ok(open(os.path.join(ROOT, 'web/js/cost-rows.js'), encoding='utf-8').read() == open(os.path.join(ROOT, 'supabase/functions/cost-sync/rows.js'), encoding='utf-8').read(),
+   'cost-sync/rows.js is identical to web/js/cost-rows.js')
+js = """import { readFileSync } from 'node:fs';
+const { unzip } = await import(process.argv[2] + '/supabase/functions/cost-sync/zip.js');
+const { sheetsFromZip, costRowsFromSheets } = await import(process.argv[2] + '/supabase/functions/cost-sync/rows.js');
+const b = readFileSync(process.argv[3]); const z = await unzip(b.buffer.slice(b.byteOffset, b.byteOffset + b.length));
+console.log(JSON.stringify(costRowsFromSheets(sheetsFromZip(z))));"""
+jf = os.path.join(OUT, 'lite.mjs'); open(jf, 'w').write(js)
+lite = json.loads(subprocess.run(['node', jf, os.path.abspath(ROOT), xl], capture_output=True, text=True).stdout or '{}')
+same = lite.get('sheets') and sorted(lite['sheets']) == sorted(sheets) and len(lite['rows']) == len(rows) and all(
+    str(a.get(k)) == str(p_.get(k)) or (isinstance(p_.get(k), (int, float)) and a.get(k) == p_.get(k)) for a, p_ in zip(lite['rows'], rows) for k in p_)
+ok(bool(same), 'cost-sync lite xlsx reader == Python excel tool (all fields)')
 
 for m in passed: print('ok  ', m)
 for m in problems: print('FAIL', m)

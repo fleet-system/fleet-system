@@ -3,50 +3,16 @@
 // والمحذوف من Excel يُؤرشف ولا يُحذف). كل سجل مربوط بالسيارة بمعرّفها الداخلي.
 import * as api from '../api.js';
 import { html, raw, icon } from '../ui.js';
-import { num, money, date, errorText } from '../fmt.js';
-import { readXlsx, serialToDate } from '../xlsx.js';
+import { num, money, date, dateTime, errorText } from '../fmt.js';
+import { readXlsx } from '../xlsx.js';
+import { costRowsFromSheets } from '../cost-rows.js';
+export { costRowsFromSheets };
 import { toast } from '../ui.js';
 
 export const COST_CAT = { maintenance: 'الصيانة', oil: 'الزيت', tires: 'الكفرات', batteries: 'البطاريات' };
 const CATS = Object.keys(COST_CAT);
 const st = { cat: '', site: '', vehicle: '', from: '', to: '', q: '' };
 
-// قراءة أوراق التكاليف من ملف Excel المالك (نفس تحويل tools/excel_costs.py). المفتاح الثابت = اسم الورقة + رقم الصف.
-const XL_SHEETS = {
-  'الصيانة': ['maintenance', { plate: 1, letters: 2, company: 3, site: 4, brand: 5, user_name: 6, date: 7, invoice_no: 8, order_no: 9, description: 10, amount: 11, payment_status: 14, payment_method: 15, payer: 16, doc_type: 17, attachment_url: 19 }],
-  'غيار_الزيت': ['oil', { plate: 1, letters: 2, company: 3, site: 4, brand: 5, user_name: 6, date: 7, odometer: 8, description: 9, invoice_no: 10, amount: 11, notes: 12, payment_status: 13, payment_method: 14, payer: 15, doc_type: 16, attachment_url: 17 }],
-  'الكفرات': ['tires', { plate: 1, letters: 2, company: 3, site: 4, brand: 5, user_name: 6, date: 7, description: 8, quantity: 9, supplier: 10, invoice_no: 11, amount: 12, payment_status: 13, payment_method: 14, payer: 15, doc_type: 16, attachment_url: 17, notes: 19 }],
-  'البطاريات': ['batteries', { plate: 1, letters: 2, company: 3, site: 4, brand: 5, user_name: 6, date: 7, description: 8, quantity: 9, supplier: 10, invoice_no: 11, amount: 12, payment_status: 13, payment_method: 14, payer: 15, doc_type: 16, attachment_url: 17, notes: 19 }],
-};
-const txt = (v) => { if (v == null || typeof v === 'boolean') return null; if (typeof v === 'object') v = v.serial; const s = String(v).trim(); return s || null; };
-const isoOf = (v) => {
-  if (v && typeof v === 'object' && Number.isFinite(v.serial)) return serialToDate(v.serial);
-  const s = txt(v); if (!s) return null;
-  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  return null;
-};
-export function costRowsFromSheets(sheets) {
-  const rows = [], read = [];
-  for (const [name, [cat, cols]] of Object.entries(XL_SHEETS)) {
-    const sh = sheets.find((x) => x.name === name); if (!sh) continue; read.push(name);
-    sh.rows.forEach((arr, i) => {
-      if (i === 0) return;
-      const g = Object.fromEntries(Object.entries(cols).map(([k, c]) => [k, arr[c - 1] ?? null]));
-      if (typeof g.amount !== 'number') return; // صف فارغ أو بدون مبلغ
-      const plate = [txt(g.letters), txt(g.plate)].filter(Boolean).join(' ') || null;
-      let notes = txt(g.notes);
-      if (g.odometer) notes = [`الممشى ${txt(g.odometer)}`, notes].filter(Boolean).join(' | ');
-      if (g.order_no) notes = [`رقم الطلب ${txt(g.order_no)}`, notes].filter(Boolean).join(' | ');
-      const att = txt(g.attachment_url);
-      rows.push({ category: cat, source_sheet: name, source_row: i + 1, plate, company: txt(g.company), site: txt(g.site), brand: txt(g.brand),
-        user_name: txt(g.user_name), date: isoOf(g.date), description: txt(g.description), quantity: typeof g.quantity === 'number' ? g.quantity : null,
-        supplier: txt(g.supplier), invoice_no: txt(g.invoice_no), amount: Math.round(g.amount * 100) / 100, payment_status: txt(g.payment_status),
-        payment_method: txt(g.payment_method), payer: txt(g.payer), doc_type: txt(g.doc_type), attachment_url: att && att.startsWith('http') ? att : null, notes });
-    });
-  }
-  return { rows, sheets: read };
-}
 
 const norm = (s) => String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase();
 const sum = (rows) => rows.reduce((s, r) => s + Number(r.amount || 0), 0);
@@ -86,7 +52,7 @@ export async function renderCosts(el, params = {}) {
       <div class="page-head">
         <div><h1>تكاليف الصيانة</h1>
         ${raw(api.can('import') || api.can('edit') ? '<label class="btn cost-sync"><input type="file" accept=".xlsx" data-cost-file hidden>تحديث من ملف Excel</label>' : '')}
-        <p class="muted small cost-sub">الصيانة والزيت والكفرات والبطاريات من ملف Excel${raw(lastSync ? html` · آخر تحديث <span class="num">${date(lastSync)}</span>` : '')}</p></div>
+        <p class="muted small cost-sub">الصيانة والزيت والكفرات والبطاريات من ملف Excel${raw(lastSync ? html` · آخر مزامنة <span class="num" data-cost-last>${dateTime(lastSync)}</span>` : '')}</p></div>
         <form class="filters" data-cost-filters aria-label="تصفية التكاليف">
           <label><span>النوع</span><select name="cat">${raw(opt('', 'الكل', st.cat))}${raw(CATS.map((c) => opt(c, COST_CAT[c], st.cat)).join(''))}</select></label>
           <label><span>الموقع</span><select name="site">${raw(opt('', 'كل المواقع', st.site))}${raw(sites.map((s) => opt(s, s, st.site)).join(''))}</select></label>
@@ -117,6 +83,15 @@ export async function renderCosts(el, params = {}) {
       </section>`;
   };
   draw();
+  // 1.35: المزامنة اللحظية: إذا وصل تحديث جديد من برنامج المراقبة في اللابتوب تُحدَّث الصفحة تلقائياً (فحص كل 30 ثانية)
+  const timer = setInterval(async () => {
+    if (!el.isConnected) { clearInterval(timer); return; }
+    if (document.hidden || el.contains(document.activeElement) && document.activeElement.matches('input,select')) return;
+    try {
+      const [r] = await api.get('cost_lines', { select: 'synced_at', order: 'synced_at.desc', limit: 1 });
+      if (r && r.synced_at > lastSync && el.isConnected) { clearInterval(timer); const fresh = el.cloneNode(false); el.replaceWith(fresh); await renderCosts(fresh); }
+    } catch { /* المحاولة القادمة */ }
+  }, 30000);
   el.addEventListener('change', async (e) => {
     if (!e.target.matches('[data-cost-file]')) return;
     const file = e.target.files[0]; if (!file) return;
@@ -125,7 +100,7 @@ export async function renderCosts(el, params = {}) {
       if (!sheets.length) { toast('الملف لا يحتوي أوراق الصيانة أو الزيت أو الكفرات أو البطاريات', 'error'); return; }
       const r = await api.rpc('sync_cost_lines', { p_rows: rows, p_sheets: `{${sheets.map((x) => `"${x}"`).join(',')}}` }) // مصفوفة نصوص بصيغة Postgres;
       toast(`تم التحديث من Excel: جديد ${r.new}، معدّل ${r.updated}، بدون تغيير ${r.unchanged}${r.archived ? `، مؤرشف ${r.archived}` : ''}`);
-      const fresh = el.cloneNode(false); el.replaceWith(fresh); await renderCosts(fresh); // عنصر جديد حتى لا تتكرر المستمعات
+      clearInterval(timer); const fresh = el.cloneNode(false); el.replaceWith(fresh); await renderCosts(fresh); // عنصر جديد حتى لا تتكرر المستمعات
     } catch (err) { toast(errorText(err), 'error'); }
   });
   el.addEventListener('change', (e) => { const f = e.target.closest('[data-cost-filters]'); if (!f) return; st[e.target.name] = e.target.value; draw(); });
