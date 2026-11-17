@@ -302,3 +302,29 @@
 /* 1.32: ترحيب أعلى لوحة التحكم */
 .page-head .greet { margin: 0 0 -8px; color: var(--muted); font-weight: 500; }
 @media print { .page-head .greet { display: none; } }
+
+/* 1.34: تكاليف الصيانة */
+.cost-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.cost-kpi { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 2px; padding: 14px 16px; border-radius: var(--r); background: var(--panel); box-shadow: var(--lift); border: 2px solid transparent; }
+.cost-kpi > span { font-size: .85rem; color: var(--muted); font-weight: 600; }
+.cost-kpi > b { font: 700 1.6rem/1.2 var(--font-display, var(--font)); color: var(--ink); }
+.cost-kpi > small { color: var(--muted); font-size: .78rem; }
+.cost-kpi.on { border-color: var(--palm); }
+.cost-kpi.total > b { font-size: 2rem; }
+.cost-kpi.k-maintenance { border-inline-start: 5px solid #2a78d6; } .cost-kpi.k-oil { border-inline-start: 5px solid #eda100; }
+.cost-kpi.k-tires { border-inline-start: 5px solid #1baf7a; } .cost-kpi.k-batteries { border-inline-start: 5px solid #e8642f; }
+.cost-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cost-bars li { display: grid; grid-template-columns: minmax(6em, 9em) 1fr auto; align-items: center; gap: 8px; font-size: .88rem; }
+.cost-bars .cb-k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-bars .cb-bar { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.cost-bars .cb-bar i { display: block; height: 100%; border-radius: 6px; background: var(--palm); }
+.cost-panels { margin-bottom: 16px; }
+.cost-list header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cost-list tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
+.tag.cat-maintenance { background: #DCEBFB; color: #1d5ea8; } .tag.cat-oil { background: #FCEFD0; color: #8a5c00; }
+.tag.cat-tires { background: #D4F2E6; color: #0d7a52; } .tag.cat-batteries { background: #FBE2D6; color: #a8431a; }
+.xcost-head { margin-top: 20px; flex-wrap: wrap; }
+:root[data-theme=dark] .tag.cat-maintenance { background: rgba(76, 155, 255, .18); color: #9cc7ff; } :root[data-theme=dark] .tag.cat-oil { background: rgba(242, 181, 68, .18); color: #f6cf7d; }
+:root[data-theme=dark] .tag.cat-tires { background: rgba(70, 209, 138, .18); color: #7fe3b0; } :root[data-theme=dark] .tag.cat-batteries { background: rgba(232, 100, 47, .2); color: #f5a37f; }
+.cost-sub { margin: 4px 0 0; }
+.cost-sync { float: inline-end; cursor: pointer; }

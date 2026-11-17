@@ -56,7 +56,9 @@ with sync_playwright() as p:
         except Exception: real = False
         ok(real, f'[{w}] real satellite welcome shown')
         ok(g.locator('.w3d-pin').count() == 4, f'[{w}] 4 farm pins on the welcome globe')
-        g.wait_for_timeout(3000)
+        for _ in range(16):
+            if len([u for u in seen if any(f'/tile/{z}/' in u for z in (13, 14, 15))]) >= 15: break
+            g.wait_for_timeout(500)
         z15 = [u for u in seen if any(f'/tile/{z}/' in u for z in (13, 14, 15))]
         ok(len(z15) >= 15, f'[{w}] farm close-up tiles prefetched before the camera arrives ({len(z15)})')
         g.wait_for_timeout(11000)

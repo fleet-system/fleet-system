@@ -15,6 +15,7 @@ import { requestForm, mrTag } from './requests.js';
 import { mountAttachments } from '../attachments.js';
 import { vehicleRenewalInfo, licTag, newPlan, stepName } from './renewal.js';
 
+import { COST_CAT } from './costs.js';
 export const TABS = [
   ['basic', 'البيانات الأساسية'], ['driver', 'السائق ووثائقه'], ['auth', 'الملكية والتفويض'], ['docs', 'الوثائق'],
   ['oil', 'تغيير الزيت'], ['maint', 'طلبات الصيانة'], ['acc', 'الحوادث'], ['hand', 'استلام وتسليم'],
@@ -35,7 +36,7 @@ const later = (phase) => html`<p class="later">${icon('clock')}<span>إضافة 
 export async function renderVehicle(el, id, params) {
   await data.lookups();
   const q = (t, extra = {}) => api.get(t, { select: '*', vehicle_id: `eq.${id}`, ...extra });
-  let [[v], docs, auths, assigns, hist, odo, oil, maint, acc, hand, costs, reqs, hx] = await Promise.all([
+  let [[v], docs, auths, assigns, hist, odo, oil, maint, acc, hand, costs, reqs, hx, xcost] = await Promise.all([
     api.get('v_vehicles_overview', { select: '*', id: `eq.${id}` }),
     q('documents', { deleted_at: 'is.null', order: 'expiry_date.desc.nullslast' }),
     q('authorizations', { deleted_at: 'is.null', order: 'expiry_date.desc.nullslast' }),
@@ -49,6 +50,7 @@ export async function renderVehicle(el, id, params) {
     q('v_expenses', { order: 'expense_date.desc' }),
     q('maintenance_requests', { deleted_at: 'is.null', order: 'request_date.desc,request_no.desc' }).catch(() => null),
     api.rpc('vehicle_history', { p_id: id }).catch(() => null),
+    q('cost_lines', { is_active: 'is.true', order: 'line_date.desc.nullslast,source_row.desc' }).catch(() => []), // 1.34: تكاليف الصيانة من Excel
   ]);
   // بطاقة في سجل السيارات المحذوفة: تُعرض كاملة للاطلاع والاسترداد (بدون تعديل)
   let archived = false;
@@ -268,7 +270,10 @@ export async function renderVehicle(el, id, params) {
         raw(html`<a class="btn btn-sm" href="#/handovers/${h.id}?print=1">طباعة</a>${raw(h.state === 'draft' && canEdit ? html`<button class="btn btn-sm btn-primary" data-act="ho-approve" data-id="${h.id}">اعتماد</button>` : '')}`)]), 'لا توجد نماذج استلام أو تسليم.')}`,
     files: html`<div class="att-box"><p class="muted">جارٍ تحميل المرفقات…</p></div>`,
     costs: html`<div class="tab-head"><h2>سجل التكاليف</h2><span class="num strong">${money(costs.reduce((s, c) => s + Number(c.total || 0), 0))}</span></div>
-      ${table(['التاريخ', 'النوع', 'المرجع', 'الموقع وقت العملية', 'الإجمالي'], costs.map((c) => [raw(html`<span class="num">${date(c.expense_date)}</span>`), { oil_change: 'تغيير زيت', maintenance: 'صيانة', accident: 'حادث' }[c.category] || c.category, c.ref_no, data.siteName(c.site_id), money(c.total)]), 'لا توجد تكاليف مسجلة لهذه السيارة.')}`,
+      ${table(['التاريخ', 'النوع', 'المرجع', 'الموقع وقت العملية', 'الإجمالي'], costs.map((c) => [raw(html`<span class="num">${date(c.expense_date)}</span>`), { oil_change: 'تغيير زيت', maintenance: 'صيانة', accident: 'حادث' }[c.category] || c.category, c.ref_no, data.siteName(c.site_id), money(c.total)]), 'لا توجد تكاليف مسجلة لهذه السيارة.')}
+      <div class="tab-head xcost-head" data-xcost><h2>تكاليف الصيانة (من Excel)</h2><span class="num strong">${money(xcost.reduce((s, c) => s + Number(c.amount || 0), 0))}</span>
+        <a class="link" href="#/costs?vehicle=${v.id}">عرض في «تكاليف الصيانة»</a></div>
+      ${table(['التاريخ', 'النوع', 'البيان', 'رقم الفاتورة', 'المبلغ'], xcost.map((c) => [raw(html`<span class="num">${date(c.line_date)}</span>`), COST_CAT[c.category] || c.category, c.description || '—', c.invoice_no || '—', money(c.amount)]), 'لا توجد تكاليف من ملف Excel لهذه السيارة.')}`,
     log: html`<div class="tab-head"><h2>سجل التعديلات</h2></div>
       <p class="muted small">كل تغيير على بيانات هذه السيارة محفوظ هنا بقيمته القديمة والجديدة، ولا يُمحى بتعديل لاحق.</p>
       ${raw(historyHtml())}
