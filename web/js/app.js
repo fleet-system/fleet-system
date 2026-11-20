@@ -27,10 +27,11 @@ import { renderSettings } from './pages/settings.js';
 import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderCosts } from './pages/costs.js';
+import { renderPredict } from './pages/predict.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.35';
+export const VERSION = '1.36';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -44,6 +45,7 @@ export const NAV = [
   { id: 'oil',         t: 'تغيير الزيت',               ic: 'oil',       phase: 4 },
   { id: 'requests',    t: 'طلب صيانة',                 ic: 'wrench',    phase: 4 },
   { id: 'costs',       t: 'تكاليف الصيانة',             ic: 'invoice',   phase: 4 },  // 1.34: من ملف Excel
+  { id: 'predict',     t: 'الصيانة التنبؤية',           ic: 'gauge',     phase: 4 },  // 1.36: توقعات بدون حساسات
   { id: 'accidents',   t: 'الحوادث',                   ic: 'alert',     phase: 4, hidden: true },  // 1.32: مخفي من القائمة بطلب المالك؛ الصفحة والبيانات باقية
   { id: 'handovers',   t: 'استلام وتسليم السيارات',     ic: 'swap',      phase: 4 },
   { id: 'housing',     t: 'صيانة سكن العمال',          ic: 'home',      phase: 5, hidden: true },  // 1.32: مخفي من القائمة بطلب المالك؛ الصفحة والبيانات باقية
@@ -231,6 +233,7 @@ async function route() {
     else if (page === 'backup') await renderProtect(el);
     else if (page === 'excel') await renderExcel(el);
     else if (page === 'reports') await renderReports(el);
+    else if (page === 'predict') await renderPredict(el);
     else if (page === 'costs') await renderCosts(el, { vehicle: params.get('vehicle') ?? undefined, cat: params.get('cat') ?? undefined });
     else if (nav) renderUpcoming(el, nav, id);
     else el.innerHTML = html`<div class="empty"><h1>الصفحة غير موجودة</h1><a class="btn btn-primary" href="#/dashboard">الرجوع إلى لوحة التحكم</a></div>`;

@@ -6,6 +6,7 @@ import { backupReminder } from './settings.js';
 import { PLACES, placeOf } from './vehicles.js';
 import { planCard, newPlan } from './renewal.js';
 import { fleetMap, bindFleetMap } from '../fleet-map.js';
+import { loadPredictions } from './predict.js';
 
 let lookups = null;
 async function getLookups() {
@@ -133,6 +134,7 @@ ${raw(vdocs ? vdocsPanel(vdocs) : '')}
           <li class="${s.docs_expired ? 'is-bad' : ''}"><span>وثائق منتهية</span><b class="num">${num(s.docs_expired)}</b></li>
           <li class="${s.docs_expiring_30 ? 'is-warn' : ''}"><span>وثائق تنتهي خلال 30 يوماً</span><b class="num">${num(s.docs_expiring_30)}</b></li>
           <li class="${s.oil_due_soon ? 'is-warn' : ''}"><span>سيارات اقترب أو حان تغيير زيتها</span><b class="num">${num(s.oil_due_soon)}</b></li>
+          <li data-pm-dash><a href="#/predict" class="link">سيارات عليها تنبيه صيانة تنبؤية</a><b class="num">…</b></li>
           <li class="${s.accidents_open ? 'is-bad' : ''}"><span>حوادث مفتوحة</span><b class="num">${num(s.accidents_open)}</b></li>
           <li><span>الموظفون على رأس العمل</span><b class="num">${num(s.employees_total)}</b></li>
         </ul>
@@ -162,6 +164,12 @@ ${raw(vdocs ? vdocsPanel(vdocs) : '')}
       </div>` : html`<div class="empty soft"><p>لا توجد مهام متابعة لهذا الاختيار. كل الوثائق سارية والزيت في موعده.</p></div>`)}
     </section>`;
   // اختيار لون/خانة: يبرز الجزء نفسه في الشريط والخانة ويعرض العدد والنسبة، والضغط مرة ثانية يلغي الاختيار
+  // 1.36: عدد تنبيهات الصيانة التنبؤية (يُحمَّل بعد اللوحة حتى لا يبطئها)
+  loadPredictions().then((res) => {
+    const li = body.querySelector('[data-pm-dash]'); if (!li) return;
+    const n = res.rows.filter((r) => r.alerts.length).length, bad = res.rows.some((r) => r.level === 'bad');
+    li.className = n ? (bad ? 'is-bad' : 'is-warn') : ''; li.querySelector('b').textContent = num(n);
+  }).catch(() => { const li = body.querySelector('[data-pm-dash]'); if (li) li.remove(); });
   const fleet = body.querySelector('.panel.fleet');
   fleet.addEventListener('click', (e) => {
     const b = e.target.closest('[data-pick]'); if (!b) return;

@@ -2,6 +2,7 @@
 // Usage: TZ=America/New_York node tests/unit_js.mjs   (run under several TZ values)
 import * as fmt from '../web/js/fmt.js';
 import * as X from '../web/js/xlsx.js';
+import * as PM from '../web/js/predict.js';
 
 let pass = 0; const fails = [];
 const eq = (got, exp, msg) => { if (JSON.stringify(got) === JSON.stringify(exp)) pass++; else fails.push(`${msg}: got ${JSON.stringify(got)} expected ${JSON.stringify(exp)}`); };
@@ -68,6 +69,45 @@ const py = `import openpyxl,json,sys; ws=openpyxl.load_workbook(sys.argv[1]).act
 const o = JSON.parse(execFileSync('python3', ['-I', '-c', py, tmp]).toString());
 eq(o, ['السيارات', 1501, 'نص <b>&"خاص"</b>', 'VEH-1500', 3, '2026-10-12 00:00:00', true], 'xlsx 1500 rows readable by openpyxl (escaping, money, date, RTL)');
 
+
+// ---- 1.36 الصيانة التنبؤية (منطق خالص)
+{
+  const T = '2026-11-20';
+  eq(PM.daysBetween('2026-10-31', '2026-11-20'), 20, 'pm daysBetween');
+  eq(PM.addDays('2026-12-25', 10), '2027-01-04', 'pm addDays over year end');
+  eq(PM.tireKind('بنشر كفر'), 'puncture', 'pm tire puncture'); eq(PM.tireKind('رقعة ألماني داخلية'), 'puncture', 'pm tire patch');
+  eq(PM.tireKind('كفرات جورني 205/70/15'), 'purchase', 'pm tire purchase'); eq(PM.tireKind('كفر تركيب مع ترصيص + كفرات مستعملة'), 'purchase', 'pm used tires = purchase');
+  eq(PM.tireKind('خدمة كفرات - سيارة مستعملة'), 'service', 'pm tire service'); eq(PM.tireKind('تغيير كفر'), 'service', 'pm tire swap');
+  eq(Math.round(PM.usageRate([{ date: '2026-10-01', km: 1000 }, { date: '2026-10-11', km: 3000 }])), 200, 'pm usage rate 200 km/day');
+  eq(PM.usageRate([{ date: '2026-10-01', km: 1000 }, { date: '2026-10-03', km: 3000 }]), null, 'pm usage rate needs 7+ days');
+  const V = [{ id: 'a', plate_no: 'A 1', oil_interval_km: 10000, odometer: 105000, odometer_updated_at: '2026-11-10' }, { id: 'b', plate_no: 'B 2', oil_interval_km: 10000, odometer: 0 }, { id: 'c', plate_no: 'C 3', oil_interval_km: 10000, odometer: 0 }];
+  const r = PM.analyze({ today: T, vehicles: V,
+    oil: [{ vehicle_id: 'a', change_date: '2026-10-01', odometer: 98000 }, { vehicle_id: 'b', change_date: '2026-07-01', odometer: 0 }],
+    readings: [],
+    costs: [
+      { vehicle_id: 'a', category: 'oil', line_date: '2026-10-01', notes: 'الممشى 98000 | x', amount: 100 },
+      { vehicle_id: 'b', category: 'maintenance', line_date: '2026-07-10', description: 'شغل يد إصلاح مكيف تعبئة فريون', amount: 400 },
+      { vehicle_id: 'b', category: 'maintenance', line_date: '2026-07-20', description: 'قطع غيار ثلاجة مكيف', amount: 300 },
+      { vehicle_id: 'b', category: 'maintenance', line_date: '2026-10-15', description: 'تعبئة فريون مكيف', amount: 200 },
+      { vehicle_id: 'b', category: 'maintenance', line_date: '2026-10-16', description: 'شغل يد: ديسك وصحن وفحمة كلتش', amount: 3000 },
+      { vehicle_id: 'c', category: 'tires', line_date: '2026-09-01', description: 'بنشر كفر', quantity: 1, amount: 10 },
+      { vehicle_id: 'c', category: 'tires', line_date: '2026-10-01', description: 'بنشر كفر', quantity: 1, amount: 10 },
+      { vehicle_id: 'c', category: 'tires', line_date: '2026-11-01', description: 'بنشر كفر', quantity: 2, amount: 10 },
+      { vehicle_id: 'c', category: 'tires', line_date: '2026-11-02', description: 'كفرات جديدة 4', quantity: 4, amount: 800 },
+    ] });
+  const a = r.rows.find((x) => x.v.id === 'a'), b = r.rows.find((x) => x.v.id === 'b'), c = r.rows.find((x) => x.v.id === 'c');
+  eq(Math.round(a.rate), 175, 'pm rate from oil km + odometer (7000 km / 40 days)');
+  eq([a.oil.dueKm, a.oil.basis, a.oil.leftKm], [108000, 'km', 108000 - (105000 + 175 * 10)], 'pm oil due by km');
+  eq(a.oil.level, 'warn', 'pm oil due within 14 days -> warn');
+  eq(b.oil.level, 'bad', 'pm oil no km, 142 days old -> overdue');
+  eq(b.faults.map((f) => [f.key, f.times]), [['ac', 2]], 'pm AC recurring twice (Jul parts+labor = 1, Oct = 1); clutch once = not recurring');
+  eq(b.faults.some((f) => f.key === 'brakes'), false, 'pm clutch disc is not brakes');
+  eq(b.cost.flag, 'rising', 'pm rising cost (3200 vs 700)');
+  eq(c.tires.punctures, 3, 'pm punctures in 90 days');
+  eq(c.alerts.some((x) => x.kind === 'puncture'), true, 'pm puncture alert');
+  eq([c.tires.lastDate, c.tires.basis, c.tires.dueDate], ['2026-11-02', 'age', '2028-11-01'], 'pm tire due by age');
+  eq(r.rows[0].level, 'bad', 'pm sorted: urgent first');
+}
 console.log(`unit_js TZ=${process.env.TZ || 'default'}: PASS ${pass}, FAIL ${fails.length}`);
 for (const f of fails) console.log('  FAIL', f);
 process.exit(fails.length ? 1 : 0);
