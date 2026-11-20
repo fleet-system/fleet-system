@@ -28,14 +28,16 @@ import { renderExcel } from './pages/excel.js';
 import { renderReports } from './pages/reports.js';
 import { renderCosts } from './pages/costs.js';
 import { renderPredict } from './pages/predict.js';
+import { renderOffice } from './pages/office.js';
 import { renderRequests, requestForm } from './pages/requests.js';
 import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.36';
+export const VERSION = '1.37';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
   { id: 'dashboard',   t: 'لوحة التحكم',              ic: 'dashboard', phase: 2 },
+  { id: 'office',      t: 'مكتب الأسطول',              ic: 'people',    phase: 2 },  // 1.37: موظفين ذكاء اصطناعي
   { id: 'sites',       t: 'الشركات والمواقع',          ic: 'sites',     phase: 3 },
   { id: 'vehicles',    t: 'السيارات',                  ic: 'car',       phase: 3 },
   { id: 'employees',   t: 'الموظفون',                  ic: 'people',    phase: 3, hidden: true },  // مخفي من القائمة فقط؛ الصفحة والبيانات باقية وتُفتح من ملف السيارة
@@ -234,6 +236,7 @@ async function route() {
     else if (page === 'excel') await renderExcel(el);
     else if (page === 'reports') await renderReports(el);
     else if (page === 'predict') await renderPredict(el);
+    else if (page === 'office') await renderOffice(el);
     else if (page === 'costs') await renderCosts(el, { vehicle: params.get('vehicle') ?? undefined, cat: params.get('cat') ?? undefined });
     else if (nav) renderUpcoming(el, nav, id);
     else el.innerHTML = html`<div class="empty"><h1>الصفحة غير موجودة</h1><a class="btn btn-primary" href="#/dashboard">الرجوع إلى لوحة التحكم</a></div>`;
