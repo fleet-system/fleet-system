@@ -3,36 +3,92 @@ import * as api from './api.js';
 import { html, raw, icon, esc, toast, $, $$ } from './ui.js';
 import { todayISO, date, errorText, label, statusText } from './fmt.js';
 import { renderLogin } from './pages/login.js';
-import { renderDashboard, subject } from './pages/dashboard.js';
-import { renderSearch } from './pages/search.js';
-import { renderUpcoming } from './pages/upcoming.js';
-import { renderSites } from './pages/sites.js';
-import { renderVehicles, addVehicle } from './pages/vehicles.js';
-import { renderVehicle } from './pages/vehicle.js';
-import { renderEmployees, renderEmployee, addEmployee } from './pages/employees.js';
-import { renderDocuments } from './pages/documents.js';
+// 1.39: الصفحات تُحمَّل عند فتحها فقط (أسرع فتح للموقع)؛ نفس الصفحات بلا تغيير
+const MODS = {
+  './pages/dashboard.js': () => import('./pages/dashboard.js'),
+  './pages/search.js': () => import('./pages/search.js'),
+  './pages/upcoming.js': () => import('./pages/upcoming.js'),
+  './pages/sites.js': () => import('./pages/sites.js'),
+  './pages/vehicles.js': () => import('./pages/vehicles.js'),
+  './pages/vehicle.js': () => import('./pages/vehicle.js'),
+  './pages/employees.js': () => import('./pages/employees.js'),
+  './pages/documents.js': () => import('./pages/documents.js'),
+  './pages/protect.js': () => import('./pages/protect.js'),
+  './pages/vehicle-admin.js': () => import('./pages/vehicle-admin.js'),
+  './pages/request-admin.js': () => import('./pages/request-admin.js'),
+  './pages/ops.js': () => import('./pages/ops.js'),
+  './pages/handovers.js': () => import('./pages/handovers.js'),
+  './pages/camp.js': () => import('./pages/camp.js'),
+  './attachments.js': () => import('./attachments.js'),
+  './pages/users.js': () => import('./pages/users.js'),
+  './pages/audit.js': () => import('./pages/audit.js'),
+  './pages/settings.js': () => import('./pages/settings.js'),
+  './pages/excel.js': () => import('./pages/excel.js'),
+  './pages/reports.js': () => import('./pages/reports.js'),
+  './pages/costs.js': () => import('./pages/costs.js'),
+  './pages/predict.js': () => import('./pages/predict.js'),
+  './pages/office.js': () => import('./pages/office.js'),
+  './pages/requests.js': () => import('./pages/requests.js'),
+  './pages/renewal.js': () => import('./pages/renewal.js'),
+};
+const loaded = {};
+// فشل تحميل ملف الصفحة (انقطاع الإنترنت) = رسالة الاتصال المعتادة، ويُعاد المحاولة في المرة التالية
+function mod(path) {
+  return (loaded[path] ||= MODS[path]().catch((e) => {
+    delete loaded[path];
+    const err = new Error('NETWORK'); err.code = 'NETWORK'; err.cause = e; throw err;
+  }));
+}
+const FN = {};
+FN.renderDashboard = async (...a) => (await mod('./pages/dashboard.js')).renderDashboard(...a);
+FN.subject = async (...a) => (await mod('./pages/dashboard.js')).subject(...a);
+FN.renderSearch = async (...a) => (await mod('./pages/search.js')).renderSearch(...a);
+FN.renderUpcoming = async (...a) => (await mod('./pages/upcoming.js')).renderUpcoming(...a);
+FN.renderSites = async (...a) => (await mod('./pages/sites.js')).renderSites(...a);
+FN.renderVehicles = async (...a) => (await mod('./pages/vehicles.js')).renderVehicles(...a);
+FN.addVehicle = async (...a) => (await mod('./pages/vehicles.js')).addVehicle(...a);
+FN.renderVehicle = async (...a) => (await mod('./pages/vehicle.js')).renderVehicle(...a);
+FN.renderEmployees = async (...a) => (await mod('./pages/employees.js')).renderEmployees(...a);
+FN.renderEmployee = async (...a) => (await mod('./pages/employees.js')).renderEmployee(...a);
+FN.addEmployee = async (...a) => (await mod('./pages/employees.js')).addEmployee(...a);
+FN.renderDocuments = async (...a) => (await mod('./pages/documents.js')).renderDocuments(...a);
+FN.renderProtect = async (...a) => (await mod('./pages/protect.js')).renderProtect(...a);
+FN.renderVehicleFields = async (...a) => (await mod('./pages/vehicle-admin.js')).renderVehicleFields(...a);
+FN.renderVehiclesArchive = async (...a) => (await mod('./pages/vehicle-admin.js')).renderVehiclesArchive(...a);
+FN.renderRequestsAdmin = async (...a) => (await mod('./pages/request-admin.js')).renderRequestsAdmin(...a);
+FN.renderOil = async (...a) => (await mod('./pages/ops.js')).renderOil(...a);
+FN.renderMaintenance = async (...a) => (await mod('./pages/ops.js')).renderMaintenance(...a);
+FN.renderAccidents = async (...a) => (await mod('./pages/ops.js')).renderAccidents(...a);
+FN.oilForm = async (...a) => (await mod('./pages/ops.js')).oilForm(...a);
+FN.maintForm = async (...a) => (await mod('./pages/ops.js')).maintForm(...a);
+FN.accidentForm = async (...a) => (await mod('./pages/ops.js')).accidentForm(...a);
+FN.renderHandovers = async (...a) => (await mod('./pages/handovers.js')).renderHandovers(...a);
+FN.handoverForm = async (...a) => (await mod('./pages/handovers.js')).handoverForm(...a);
+FN.renderHousing = async (...a) => (await mod('./pages/camp.js')).renderHousing(...a);
+FN.renderFood = async (...a) => (await mod('./pages/camp.js')).renderFood(...a);
+FN.housingForm = async (...a) => (await mod('./pages/camp.js')).housingForm(...a);
+FN.foodForm = async (...a) => (await mod('./pages/camp.js')).foodForm(...a);
+FN.renderAttachmentsLibrary = async (...a) => (await mod('./attachments.js')).renderAttachmentsLibrary(...a);
+FN.renderUsers = async (...a) => (await mod('./pages/users.js')).renderUsers(...a);
+FN.renderAudit = async (...a) => (await mod('./pages/audit.js')).renderAudit(...a);
+FN.renderSettings = async (...a) => (await mod('./pages/settings.js')).renderSettings(...a);
+FN.renderExcel = async (...a) => (await mod('./pages/excel.js')).renderExcel(...a);
+FN.renderReports = async (...a) => (await mod('./pages/reports.js')).renderReports(...a);
+FN.renderCosts = async (...a) => (await mod('./pages/costs.js')).renderCosts(...a);
+FN.renderPredict = async (...a) => (await mod('./pages/predict.js')).renderPredict(...a);
+FN.renderOffice = async (...a) => (await mod('./pages/office.js')).renderOffice(...a);
+FN.renderRequests = async (...a) => (await mod('./pages/requests.js')).renderRequests(...a);
+FN.requestForm = async (...a) => (await mod('./pages/requests.js')).requestForm(...a);
+FN.renderRenewalList = async (...a) => (await mod('./pages/renewal.js')).renderRenewalList(...a);
+FN.renderPlan = async (...a) => (await mod('./pages/renewal.js')).renderPlan(...a);
+FN.renderDelegates = async (...a) => (await mod('./pages/renewal.js')).renderDelegates(...a);
+// تحميل مسبق للوحة التحكم بعد ظهور الواجهة
+function warm() { mod('./pages/dashboard.js').catch(() => {}); }
 import { saved } from './form.js';
 import { pruneDrafts } from './drafts.js';
 import { registerWorker } from './push.js';
-import { renderProtect } from './pages/protect.js';
-import { renderVehicleFields, renderVehiclesArchive } from './pages/vehicle-admin.js';
-import { renderRequestsAdmin } from './pages/request-admin.js';
-import { renderOil, renderMaintenance, renderAccidents, oilForm, maintForm, accidentForm } from './pages/ops.js';
-import { renderHandovers, handoverForm } from './pages/handovers.js';
-import { renderHousing, renderFood, housingForm, foodForm } from './pages/camp.js';
-import { renderAttachmentsLibrary } from './attachments.js';
-import { renderUsers } from './pages/users.js';
-import { renderAudit } from './pages/audit.js';
-import { renderSettings } from './pages/settings.js';
-import { renderExcel } from './pages/excel.js';
-import { renderReports } from './pages/reports.js';
-import { renderCosts } from './pages/costs.js';
-import { renderPredict } from './pages/predict.js';
-import { renderOffice } from './pages/office.js';
-import { renderRequests, requestForm } from './pages/requests.js';
-import { renderRenewalList, renderPlan, renderDelegates } from './pages/renewal.js';
 
-export const VERSION = '1.38';
+export const VERSION = '1.39';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [
@@ -154,7 +210,7 @@ async function onShellClick(e) {
     e.preventDefault(); closePops();
     const page = newItem.getAttribute('href').slice(2).split('?')[0];
     if (!api.can('create')) { toast('لا تملك صلاحية الإضافة.', 'error'); return; }
-    const fn = { vehicles: addVehicle, employees: addEmployee, oil: () => oilForm(null), maintenance: () => maintForm(null), requests: () => requestForm(), accidents: () => accidentForm(null), handovers: () => handoverForm(null), housing: () => housingForm(), food: () => foodForm() }[page];
+    const fn = { vehicles: FN.addVehicle, employees: FN.addEmployee, oil: () => FN.oilForm(null), maintenance: () => FN.maintForm(null), requests: () => FN.requestForm(), accidents: () => FN.accidentForm(null), handovers: () => FN.handoverForm(null), housing: () => FN.housingForm(), food: () => FN.foodForm() }[page];
     const row = await fn();
     if (!row) return;
     if (page === 'vehicles' || page === 'employees') { saved(`تمت الإضافة: ${row.code}`); location.hash = `#/${page}/${row.id}`; }
@@ -173,6 +229,7 @@ async function onShellClick(e) {
 
 export async function loadBell() {
   try {
+    const { subject } = await mod('./pages/dashboard.js');
     const rows = (await api.get('v_followups', { select: 'subject_type,subject_id,subject_label,alert_type,status,days_left,km_left,severity', severity: 'eq.1' }))
       .sort((a, b) => (b.alert_type === 'maintenance_request') - (a.alert_type === 'maintenance_request'));
     const badge = $('.bell .badge');
@@ -210,35 +267,35 @@ async function route() {
   const nav = NAV.find((n) => n.id === page);
   document.title = `${nav ? nav.t : page === 'search' ? 'نتائج البحث' : 'الصفحة'} — نظام إدارة الأسطول`;
   try {
-    if (page === 'dashboard') await renderDashboard(el);
-    else if (page === 'search') await renderSearch(el, params.get('q') || '');
-    else if (page === 'sites') await renderSites(el);
-    else if (page === 'vehicles') await (id ? renderVehicle(el, id, params) : renderVehicles(el, params));
-    else if (page === 'employees') await (id ? renderEmployee(el, id, params) : renderEmployees(el));
-    else if (page === 'documents') await renderDocuments(el);
-    else if (page === 'renewal') await (id ? renderPlan(el, id) : renderRenewalList(el, params));
-    else if (page === 'delegates') await renderDelegates(el, id);
-    else if (page === 'oil') await renderOil(el);
-    else if (page === 'maintenance') await renderMaintenance(el);
-    else if (page === 'requests') await renderRequests(el, id, params);
-    else if (page === 'accidents') await renderAccidents(el);
-    else if (page === 'handovers') await renderHandovers(el, id, params);
-    else if (page === 'housing') await renderHousing(el);
-    else if (page === 'food') await renderFood(el);
-    else if (page === 'attachments') await renderAttachmentsLibrary(el);
-    else if (page === 'users') await renderUsers(el);
-    else if (page === 'audit') await renderAudit(el);
-    else if (page === 'settings' && id === 'vehicle-fields') await renderVehicleFields(el);
-    else if (page === 'settings' && id === 'vehicles-archive') await renderVehiclesArchive(el);
-    else if (page === 'settings' && id === 'requests') await renderRequestsAdmin(el, params);
-    else if (page === 'settings') await renderSettings(el);
-    else if (page === 'backup') await renderProtect(el);
-    else if (page === 'excel') await renderExcel(el);
-    else if (page === 'reports') await renderReports(el);
-    else if (page === 'predict') await renderPredict(el);
-    else if (page === 'office') await renderOffice(el);
-    else if (page === 'costs') await renderCosts(el, { vehicle: params.get('vehicle') ?? undefined, cat: params.get('cat') ?? undefined });
-    else if (nav) renderUpcoming(el, nav, id);
+    if (page === 'dashboard') await FN.renderDashboard(el);
+    else if (page === 'search') await FN.renderSearch(el, params.get('q') || '');
+    else if (page === 'sites') await FN.renderSites(el);
+    else if (page === 'vehicles') await (id ? FN.renderVehicle(el, id, params) : FN.renderVehicles(el, params));
+    else if (page === 'employees') await (id ? FN.renderEmployee(el, id, params) : FN.renderEmployees(el));
+    else if (page === 'documents') await FN.renderDocuments(el);
+    else if (page === 'renewal') await (id ? FN.renderPlan(el, id) : FN.renderRenewalList(el, params));
+    else if (page === 'delegates') await FN.renderDelegates(el, id);
+    else if (page === 'oil') await FN.renderOil(el);
+    else if (page === 'maintenance') await FN.renderMaintenance(el);
+    else if (page === 'requests') await FN.renderRequests(el, id, params);
+    else if (page === 'accidents') await FN.renderAccidents(el);
+    else if (page === 'handovers') await FN.renderHandovers(el, id, params);
+    else if (page === 'housing') await FN.renderHousing(el);
+    else if (page === 'food') await FN.renderFood(el);
+    else if (page === 'attachments') await FN.renderAttachmentsLibrary(el);
+    else if (page === 'users') await FN.renderUsers(el);
+    else if (page === 'audit') await FN.renderAudit(el);
+    else if (page === 'settings' && id === 'vehicle-fields') await FN.renderVehicleFields(el);
+    else if (page === 'settings' && id === 'vehicles-archive') await FN.renderVehiclesArchive(el);
+    else if (page === 'settings' && id === 'requests') await FN.renderRequestsAdmin(el, params);
+    else if (page === 'settings') await FN.renderSettings(el);
+    else if (page === 'backup') await FN.renderProtect(el);
+    else if (page === 'excel') await FN.renderExcel(el);
+    else if (page === 'reports') await FN.renderReports(el);
+    else if (page === 'predict') await FN.renderPredict(el);
+    else if (page === 'office') await FN.renderOffice(el);
+    else if (page === 'costs') await FN.renderCosts(el, { vehicle: params.get('vehicle') ?? undefined, cat: params.get('cat') ?? undefined });
+    else if (nav) await FN.renderUpcoming(el, nav, id);
     else el.innerHTML = html`<div class="empty"><h1>الصفحة غير موجودة</h1><a class="btn btn-primary" href="#/dashboard">الرجوع إلى لوحة التحكم</a></div>`;
   } catch (e) {
     el.innerHTML = html`<div class="empty error"><h1>تعذر تحميل الصفحة</h1><p>${errorText(e)}</p><button class="btn btn-primary" onclick="location.reload()">إعادة المحاولة</button></div>`;
@@ -281,6 +338,8 @@ function bootOffline() {
 async function start() {
   root.removeEventListener('click', onShellClick);
   let user;
+  const first = parseHash().page;
+  if (!first || first === 'dashboard' || first === 'login') warm();
   try { user = await api.restore(); }
   catch (_) { return bootOffline(); }
   if (!user) {
@@ -288,6 +347,7 @@ async function start() {
       if (!u.is_active) return disabled();
       shell(u); if (!location.hash || location.hash === '#/login') location.hash = '#/dashboard'; else route();
     });
+    setTimeout(warm, 300);
     return;
   }
   if (!user.is_active) return disabled();
