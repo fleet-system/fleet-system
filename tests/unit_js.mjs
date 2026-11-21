@@ -109,25 +109,31 @@ eq(o, ['السيارات', 1501, 'نص <b>&"خاص"</b>', 'VEH-1500', 3, '2026-1
   eq([c.tires.lastDate, c.tires.basis, c.tires.dueDate], ['2026-11-02', 'age', '2028-11-01'], 'pm tire due by age');
   eq(r.rows[0].level, 'bad', 'pm sorted: urgent first');
 }
-{ // 1.37: مكتب الأسطول
+{ // 1.37/1.38: مكتب الأسطول
   eq(OF.routeAgent('السيارة 1624 تحتاج غيار زيت'), 'oil', 'office route: oil');
   eq(OF.routeAgent('جهز طلب صيانة المكيف خربان'), 'maintenance', 'office route: maintenance');
   eq(OF.routeAgent('الاستمارة تنتهي جدد التأمين'), 'docs', 'office route: docs');
-  eq(OF.routeAgent('فاتورة غير مدفوعة للمورد'), 'custody', 'office route: custody');
-  eq(OF.routeAgent('أضف الصف في ملف الإكسل'), 'excel', 'office route: excel');
+  eq(OF.routeAgent('فاتورة غير مدفوعة للمورد'), 'expenses', 'office route: expenses');
+  eq(OF.routeAgent('أضف الصف في ملف الإكسل'), 'expenses', 'office route: excel sync goes to expenses');
+  eq(OF.routeAgent('السيارة ما لها قراءة عداد'), 'fleet', 'office route: fleet');
+  eq(OF.routeAgent('طلب شراء قطع غيار من مورد'), 'purchasing', 'office route: purchasing');
+  eq(OF.routeAgent('صار حادث للسيارة'), 'manager', 'office route: accidents has no task queue yet, stays with the manager');
+  eq([OF.agentById('custody').id, OF.agentById('excel').id, OF.agentById('food').id, OF.AGENTS.length, OF.TASK_AGENTS.length], ['expenses', 'fleet', 'purchasing', 9, 8], 'office: db ids map to the new agents');
   eq(OF.routeAgent('مرحبا كيف الحال'), 'manager', 'office route: unknown stays with the manager');
   eq([OF.levelOf(0).lv, OF.levelOf(49).lv, OF.levelOf(50).lv, OF.levelOf(3000).lv, OF.levelOf(9999).pct], [1, 1, 2, 10, 100], 'office levels');
   const o = OF.buildOffice({ now: '2026-11-20T08:00:00Z',
     requests: [{ id: 'r1', request_no: 'MR-1', status: 'approved', fault: 'مكيف' }, { id: 'r2', status: 'completed' }],
     docs: [{ owner_type: 'vehicle', owner_id: 'v1', doc_type: 'registration', status: 'expired', subject_label: 'A' }, { status: 'valid' }],
     costs: [{ category: 'maintenance', payment_status: 'غير مدفوع', amount: 100, synced_at: '2026-11-10T00:00:00Z' }, { category: 'oil', payment_status: 'مدفوع', synced_at: '2026-11-09T00:00:00Z' }],
-    alerts: [{ kind: 'oil', level: 'bad', text: 'زيت', plate: 'P1', vid: 'v1' }],
+    alerts: [{ kind: 'oil', level: 'bad', text: 'زيت', plate: 'P1', vid: 'v1' }, { kind: 'cost', level: 'warn', text: 'مصاريف', plate: 'P1', vid: 'v1' }],
+    vehicles: [{ id: 'v1', plate_no: 'P1', odometer_updated_at: '2026-09-01T00:00:00Z' }, { id: 'v2', plate_no: 'P2', odometer_updated_at: '2026-11-19T00:00:00Z' }],
     tasks: [{ id: 't1', agent: 'docs', status: 'needs_you', title: 'جدد', is_active: true }, { id: 't2', agent: 'docs', status: 'done', done_at: '2026-11-20T07:00:00Z', title: 'x' }] });
   const g = (id) => o.agents.find((a) => a.id === id);
   eq([g('maintenance').items.length, g('maintenance').state], [1, 'working'], 'office maintenance: 1 open request');
   eq([g('docs').state, g('docs').delivered, g('docs').level.xp], ['waiting', true, 5 + 20], 'office docs waiting + delivered + xp');
-  eq([g('custody').items.length, g('excel').items[0].kind, o.syncAge], [1, 'sync', 10], 'office custody unpaid + stale sync');
-  eq([g('oil').items.length, g('food').state], [1, 'idle'], 'office oil alert, food idle');
+  eq([g('expenses').items.map((x) => x.kind).sort().join(), o.syncAge], ['cost,sync,unpaid', 10], 'office expenses: unpaid + stale sync + cost spike');
+  eq([g('fleet').items.length, g('fleet').scanned, g('fleet').spark[12]], [1, 2, 1], 'office fleet: stale odometer, scanned, spark');
+  eq([g('oil').items.length, g('oil').state, g('accidents').state, g('purchasing').scanned], [1, 'alert', 'idle', 0], 'office oil alert, accidents idle');
   const br = OF.buildBrief(o, [{ id: 't1', agent: 'docs', status: 'needs_you', title: 'جدد' }]);
   eq([br.counts.needs_you, br.broke.length >= 2], [1, true], 'office brief: needs you + broke');
 }

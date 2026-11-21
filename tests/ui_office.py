@@ -1,4 +1,4 @@
-"""v1.37: «مكتب الأسطول» (موظفين ذكاء اصطناعي). بيانات وهمية فقط.
+"""v1.37/1.38: «مكتب الأسطول الذكي» (المدير + 8 موظفين ذكاء اصطناعي روبوتات، غرفة المتابعة، مكتب ثلاثي الأبعاد). بيانات وهمية فقط.
 يتحقق من: الصفحة في القائمة، 8 مكاتب، اللمبة والعدد من البيانات، تفاصيل الموظف، طلب للمديرة يتوزع ويتسجل،
 «موافق» للمسؤول فقط ويغير الحالة، الملخص الصباحي ومكتبة الأسبوع من office_reports، المشاهد ما يقدر يوافق،
 وما فيه تمدد أفقي في الجوال.
@@ -26,7 +26,7 @@ def login(g, who):
     g.goto(BASE); g.wait_for_selector('form.login-card'); g.fill('input[name=email]', who); g.fill('input[name=password]', 'test1234'); g.click('button[type=submit]'); g.wait_for_selector('.panels')
 
 with sync_playwright() as p:
-    b = p.chromium.launch()
+    b = p.chromium.launch(args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     for w in (390, 1360):
         c = b.new_context(viewport={'width': w, 'height': 900}, locale='ar-SA', timezone_id='Asia/Riyadh')
         g = c.new_page(); g.route('**/fonts.googleapis.com/**', lambda r: r.abort())
@@ -36,20 +36,25 @@ with sync_playwright() as p:
         else:
             g.click('[data-act=more]'); ok(g.locator('.sheet [data-nav=office]').count() == 1, 'mobile: «مكتب الأسطول» in «المزيد»'); g.keyboard.press('Escape')
         g.goto(f'{BASE}#/office'); g.wait_for_selector('[data-office]')
-        ok(g.locator('.of-room').count() == 8, f'[{w}] 8 offices')
-        cu = g.locator('.of-room[data-agent=custody]')
-        ok('of-working' in (cu.get_attribute('class') or '') and cu.locator('[data-busy]').inner_text() == '1', f'[{w}] custody: lamp on, 1 unpaid invoice')
+        ok(g.locator('.of-room').count() == 9, f'[{w}] manager + 8 AI employees')
+        ok([g.locator(f'.of-room[data-agent={a}]').count() for a in ('fleet', 'maintenance', 'oil', 'docs', 'accidents', 'expenses', 'reports', 'purchasing')] == [1] * 8, f'[{w}] the 8 new roles')
+        cu = g.locator('.of-room[data-agent=expenses]')
+        ok('of-working' in (cu.get_attribute('class') or '') and int(cu.locator('[data-busy]').inner_text()) >= 2, f'[{w}] expenses: unpaid invoice + stale sync')
+        ok(g.locator('[data-ops] .ops-ag').count() == 8 and g.locator('.ops-net [data-node]').count() == 9 and g.locator('.ops-pix').count() == 1, f'[{w}] ops room: 8 panels, 9 network nodes, pixel floor')
+        ok(g.locator('[data-feed] li').count() >= 2 and 'يراجع' in g.inner_text('[data-feed]') and 'مزامنة' in g.inner_text('[data-feed]'), f'[{w}] live feed lists real findings')
+        ok(g.inner_text('[data-kpi=waiting]').strip() == '1', f'[{w}] KPI: 1 waiting for approval')
+        ok(g.locator('[data-cap] tbody tr').count() == 8, f'[{w}] implemented vs needs-development table')
         ok('of-waiting' in (g.locator('.of-room[data-agent=docs]').get_attribute('class') or ''), f'[{w}] docs waiting for approval')
         ok('of-deliver' in (g.locator('.of-room[data-agent=reports]').get_attribute('class') or ''), f'[{w}] reports delivered today (walks to the manager)')
-        ok('of-idle' in (g.locator('.of-room[data-agent=food]').get_attribute('class') or ''), f'[{w}] food idle')
-        ok(g.locator('.of-room[data-agent=excel] [data-busy]').count() == 1, f'[{w}] excel: stale sync flagged')
+        ok('of-idle' in (g.locator('.of-room[data-agent=purchasing]').get_attribute('class') or ''), f'[{w}] purchasing idle')
+        ok('مزامنة' in g.inner_text('[data-feed]') + g.inner_text('[data-brief]'), f'[{w}] stale Excel sync flagged')
         ok('ملخص تجربة' in g.inner_text('[data-brief]') and 'مزامنة تجربة متوقفة' in g.inner_text('[data-brief]'), f'[{w}] morning brief from office_reports')
         ok('نحسن تجربة' in g.inner_text('[data-weekly]'), f'[{w}] weekly library shown')
         ok(g.locator('[data-needs] [data-task]').count() == 1, f'[{w}] one task needs you')
         ok(g.evaluate('document.documentElement.scrollWidth') <= w, f'[{w}] no horizontal overflow')
         g.screenshot(path=f'{OUT}/office-{w}.png', full_page=False)
-        g.locator('.of-room[data-agent=custody]').click(); g.wait_for_selector('[data-detail=custody]')
-        ok('ورشة تجربة' in g.inner_text('[data-detail=custody]'), f'[{w}] custody detail lists the unpaid invoice')
+        g.locator('.of-room[data-agent=expenses]').click(); g.wait_for_selector('[data-detail=expenses]')
+        ok('ورشة تجربة' in g.inner_text('[data-detail=expenses]'), f'[{w}] expenses detail lists the unpaid invoice')
         g.screenshot(path=f'{OUT}/office-detail-{w}.png', full_page=True)
         g.click('[data-detail] [data-close]'); ok(g.locator('[data-detail]').count() == 0, f'[{w}] detail closes')
         if w > 1000:
@@ -72,6 +77,20 @@ with sync_playwright() as p:
     tid = sql("select id from office_tasks where title = 'مهمة للمشاهد'")
     r = g.evaluate("""async (id) => { const m = await import('./js/api.js'); try { await m.rpc('office_decide', { p_id: id, p_decision: 'approved' }); return 'ok'; } catch (e) { return 'denied'; } }""", tid)
     ok(r == 'denied' and sql(f"select status from office_tasks where id = '{tid}'") == 'needs_you', 'viewer: office_decide denied by the server')
+    c.close()
+    # المكتب الثلاثي الأبعاد (الاختبارات الآلية تتخطاه افتراضياً؛ هنا نفعّله ونتأكد أنه يشتغل بدون أخطاء)
+    c = b.new_context(viewport={'width': 1360, 'height': 900}, locale='ar-SA'); g = c.new_page(); g.route('**/fonts.googleapis.com/**', lambda r: r.abort())
+    errs = []; g.on('pageerror', lambda e: errs.append(str(e)))
+    g.add_init_script('window.__office3d = true')
+    login(g, 'admin@test.local'); g.goto(f'{BASE}#/office'); g.wait_for_selector('[data-office]')
+    try: g.wait_for_selector('.o3-chip', timeout=60000)
+    except Exception: pass
+    ok(g.locator('.o3-chip').count() == 9 and g.locator('#o3 canvas').count() >= 1, '3D office: canvas + 9 name chips')
+    ok(g.locator('.of-room img.of-pic').count() == 9, '3D office: robot portraits on the 9 cards')
+    g.evaluate("document.querySelector('.o3-chip[data-chip=docs]').click()"); g.wait_for_timeout(800)
+    ok(g.locator('[data-detail=docs]').count() == 1, '3D office: clicking a chip opens the employee file')
+    ok(not errs, f'3D office: no page errors {errs[:2]}')
+    g.wait_for_timeout(1500); g.screenshot(path=f'{OUT}/office-3d.png')
     c.close(); b.close()
 
 ok(sql("select md5(string_agg(t::text, '|' order by t::text)) from cost_lines t") == before_costs, 'office never writes to cost_lines')
