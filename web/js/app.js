@@ -88,7 +88,7 @@ import { saved } from './form.js';
 import { pruneDrafts } from './drafts.js';
 import { registerWorker } from './push.js';
 
-export const VERSION = '1.39';
+export const VERSION = '1.40';
 
 // القائمة الرئيسية (بالترتيب المطلوب). phase = المرحلة التي يُبنى فيها القسم
 export const NAV = [

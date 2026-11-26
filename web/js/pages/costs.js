@@ -11,6 +11,9 @@ import { toast } from '../ui.js';
 
 export const COST_CAT = { maintenance: 'الصيانة', oil: 'الزيت', tires: 'الكفرات', batteries: 'البطاريات' };
 const CATS = Object.keys(COST_CAT);
+// نفس منطق requests.js (بدون استيراده حتى لا تُحمَّل صفحة الطلبات مع صفحة التكاليف)
+const orderNo = (notes) => { const m = /رقم الطلب\s*([^|]+)/.exec(notes || ''); return m ? m[1].trim() : null; };
+const sameNo = (a, b) => { const n = (x) => String(x).trim().toUpperCase().replace(/^MR-?/, '').replace(/^0+(?=\d)/, ''); return !!a && !!b && n(a) === n(b); };
 const st = { cat: '', site: '', vehicle: '', from: '', to: '', q: '' };
 
 
@@ -36,6 +39,14 @@ export async function renderCosts(el, params = {}) {
   const sites = [...new Set(all.map((r) => r.site_name).filter(Boolean))].sort();
   const vehicles = [...new Map(all.filter((r) => r.vehicle_id).map((r) => [r.vehicle_id, r.plate_text])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
   const lastSync = all.reduce((m, r) => (r.synced_at > m ? r.synced_at : m), '');
+  // 1.40: رقم الطلب في Excel يفتح طلب الصيانة نفسه في الموقع
+  let reqs = [];
+  if (all.some((r) => orderNo(r.notes))) { try { reqs = await api.get('maintenance_requests', { select: 'id,request_no', deleted_at: 'is.null' }); } catch (_) { /* بدون صلاحية */ } }
+  const reqLink = (r) => {
+    const o = orderNo(r.notes); if (!o) return '';
+    const q = reqs.find((x) => sameNo(x.request_no, o));
+    return q ? html` <a class="tag" href="#/requests/${q.id}">طلب ${q.request_no}</a>` : html` <span class="tag muted">طلب ${o}</span>`;
+  };
 
   const draw = () => {
     const words = norm(st.q).split(/\s+/).filter(Boolean);
@@ -76,7 +87,7 @@ export async function renderCosts(el, params = {}) {
         ${raw(rows.length ? html`<div class="table-wrap"><table class="log"><thead><tr><th>التاريخ</th><th>النوع</th><th>السيارة</th><th>البيان</th><th>المورد</th><th>رقم الفاتورة</th><th>الدفع</th><th>المبلغ</th></tr></thead><tbody>
           ${raw(rows.map((r) => html`<tr data-cost-row="${r.category}"><td class="num">${date(r.line_date)}</td><td><span class="tag cat-${r.category}">${COST_CAT[r.category]}</span></td>
             <td>${raw(r.vehicle_id ? html`<a href="#/vehicles/${r.vehicle_id}?tab=costs" class="plate">${r.plate_text}</a>` : html`<span class="plate">${r.plate_text || '—'}</span>`)}</td>
-            <td>${r.description || '—'}${raw(r.quantity ? html` <span class="muted small">×<span class="num">${num(r.quantity)}</span></span>` : '')}</td><td>${r.supplier || '—'}</td>
+            <td>${r.description || '—'}${raw(reqLink(r))}${raw(r.quantity ? html` <span class="muted small">×<span class="num">${num(r.quantity)}</span></span>` : '')}</td><td>${r.supplier || '—'}</td>
             <td class="num">${r.invoice_no || '—'}${raw(r.attachment_url ? html` <a href="${r.attachment_url}" target="_blank" rel="noopener" aria-label="المرفق">${icon('invoice')}</a>` : '')}</td>
             <td>${r.payment_status || '—'}</td><td class="num strong">${num(r.amount, 2)}</td></tr>`).join(''))}
           </tbody><tfoot><tr><td colspan="7">الإجمالي</td><td class="num strong">${money(total)}</td></tr></tfoot></table></div>` : '<p class="muted pad">لا توجد تكاليف بهذه التصفية.</p>')}

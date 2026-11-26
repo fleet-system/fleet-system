@@ -213,6 +213,7 @@ async function renderRequest(el, id, params) {
   if (!r) { el.innerHTML = html`<div class="empty"><h1>الطلب غير موجود</h1><a class="btn btn-primary" href="#/requests">طلبات الصيانة</a></div>`; return; }
   const history = r.vehicle_id ? (await api.get('maintenance_requests', { select: 'id,request_no,request_date,status,fault,last_change_date', vehicle_id: `eq.${r.vehicle_id}`, deleted_at: 'is.null', order: 'request_date.desc,request_no.desc' })).filter((h) => h.id !== r.id) : [];
   const company = r.company_id ? data.companyName(r.company_id) : '';
+  const { linked, since } = await requestCosts(r);
   const archived = !!r.deleted_at;
   if (archived) { try { const [x] = await api.get('v_requests_archive', { select: 'deleted_by_name', id: `eq.${r.id}` }); r.deleted_by_name = x?.deleted_by_name; } catch (_) { /* قبل تحديث قاعدة البيانات */ } }
   const canEdit = api.can('edit') && !archived, canApprove = api.can('approve_maintenance') && !archived;
@@ -249,6 +250,7 @@ async function renderRequest(el, id, params) {
       ${raw(r.maintenance_id ? html`<p>فاتورة الصيانة المرتبطة: <a href="#/maintenance">عرض في سجل فواتير الصيانة</a></p>` : '')}
       ${raw(r.vehicle_id ? html`<p><a href="#/vehicles/${r.vehicle_id}?tab=maint">فتح ملف السيارة ←</a></p>` : '')}
     </section>
+    ${raw(costsSection(linked, since, r))}
     <section class="panel no-print">
       <div class="tab-head"><h2>صور العطل والفواتير والتقارير</h2></div>
       <div class="att-box"></div>
@@ -286,6 +288,47 @@ async function renderRequest(el, id, params) {
   // المرفقات تُحمَّل بعد ربط الأزرار حتى لا تعمل الأزرار ببيانات قديمة أثناء التحميل
   await mountAttachments($('.att-box', el), { entity_type: 'maintenance_request', entity_id: r.id, title: `مرفقات ${r.request_no}` });
   if (params?.get('print') === '1') setTimeout(() => window.print(), 300);
+}
+
+// 1.40: ربط الطلب بفواتيره من ملف Excel (cost_lines، قراءة فقط، بدون تغيير في قاعدة البيانات):
+//  * «فواتير هذا الطلب»: الصفوف التي عمود «رقم الطلب» فيها = رقم الطلب (MR-000003 أو 3)؛ المزامنة تحفظه في notes «رقم الطلب X».
+//  * «فواتير السيارة منذ تاريخ الطلب»: صيانة/كفرات/بطاريات لنفس السيارة بتاريخ الطلب أو بعده (غير المربوطة برقم طلب آخر).
+export const orderNoOf = (notes) => { const m = /رقم الطلب\s*([^|]+)/.exec(notes || ''); return m ? m[1].trim() : null; };
+export const sameRequestNo = (a, b) => {
+  if (!a || !b) return false;
+  const n = (x) => String(x).trim().toUpperCase().replace(/^MR-?/, '').replace(/^0+(?=\d)/, '');
+  return n(a) === n(b);
+};
+const COST_SEL = 'id,category,vehicle_id,plate_text,line_date,description,supplier,invoice_no,amount,payment_status,attachment_url,notes';
+export async function requestCosts(r) {
+  try {
+    const [tagged, veh] = await Promise.all([
+      api.get('cost_lines', { select: COST_SEL, is_active: 'is.true', notes: 'like.*رقم الطلب*', order: 'line_date.desc.nullslast' }),
+      r.vehicle_id ? api.get('cost_lines', { select: COST_SEL, is_active: 'is.true', vehicle_id: `eq.${r.vehicle_id}`, order: 'line_date.desc.nullslast' }) : [],
+    ]);
+    const linked = tagged.filter((c) => sameRequestNo(orderNoOf(c.notes), r.request_no));
+    const ids = new Set(linked.map((c) => c.id));
+    const since = veh.filter((c) => !ids.has(c.id) && c.category !== 'oil' && !orderNoOf(c.notes) && c.line_date && r.request_date && c.line_date >= r.request_date);
+    return { linked, since };
+  } catch (_) { return { linked: [], since: [] }; } // قبل إضافة جدول التكاليف أو بدون صلاحية
+}
+const COST_LABEL = { maintenance: 'الصيانة', oil: 'الزيت', tires: 'الكفرات', batteries: 'البطاريات' };
+function costRows(list) {
+  const total = list.reduce((s, c) => s + Number(c.amount || 0), 0);
+  return html`<div class="table-wrap"><table class="rtable"><thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>رقم الفاتورة</th><th>الدفع</th><th>المبلغ</th></tr></thead><tbody>
+    ${raw(list.map((c) => html`<tr data-req-cost="${c.id}"><td data-l="التاريخ" class="num">${date(c.line_date)}</td><td data-l="النوع">${COST_LABEL[c.category] || c.category}</td>
+      <td data-l="البيان">${short(c.description)}${c.supplier ? ` — ${c.supplier}` : ''}</td>
+      <td data-l="رقم الفاتورة" class="num">${c.invoice_no || '—'}${raw(c.attachment_url ? html` <a href="${c.attachment_url}" target="_blank" rel="noopener" aria-label="المرفق">${icon('invoice')}</a>` : '')}</td>
+      <td data-l="الدفع">${c.payment_status || '—'}</td><td data-l="المبلغ" class="num strong">${num(c.amount, 2)}</td></tr>`).join(''))}
+    </tbody><tfoot><tr><td colspan="5">الإجمالي</td><td class="num strong">${num(total, 2)}</td></tr></tfoot></table></div>`;
+}
+function costsSection(linked, since, r) {
+  return html`<section class="panel no-print mr-costs">
+      <div class="tab-head"><h2>فواتير هذا الطلب</h2><span class="count num">${num(linked.length)}</span></div>
+      ${raw(linked.length ? costRows(linked) : html`<p class="muted pad">لا توجد فاتورة مكتوب عليها رقم الطلب <b class="num">${r.request_no}</b> في عمود «رقم الطلب» بملف Excel.</p>`)}
+      ${raw(since.length ? html`<h3>فواتير السيارة منذ تاريخ الطلب</h3>${raw(costRows(since))}` : '')}
+      ${raw(r.vehicle_id ? html`<p><a class="link" href="#/costs?vehicle=${r.vehicle_id}">كل تكاليف السيارة في «تكاليف الصيانة» ←</a></p>` : '')}
+    </section>`;
 }
 
 // حذف طلب الصيانة = نقله إلى سجل المحذوفات (لا يُمسح شيء، ويمكن استرجاعه)
