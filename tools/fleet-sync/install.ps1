@@ -2,8 +2,8 @@
 $ErrorActionPreference = 'Stop'
 $Here = $PSScriptRoot
 $Docs = Split-Path $Here
-$File = Get-ChildItem -LiteralPath $Docs -Filter '*.xlsx' | Where-Object { $_.Name -like '*النسخه الجديده*' -and $_.Name -notlike '~$*' } | Select-Object -First 1
-if (-not $File) { Write-Host 'لم أجد ملف «قاعة البيانات... النسخه الجديده» في المستندات' -ForegroundColor Red; Read-Host 'اضغط Enter'; exit 1 }
+$File = Get-ChildItem -LiteralPath $Docs -Filter '*.xlsx' | Where-Object { $_.Name -eq 'قاعدة بيانات السيارات.xlsx' } | Select-Object -First 1
+if (-not $File) { Write-Host 'لم أجد ملف «قاعدة بيانات السيارات.xlsx» في المستندات' -ForegroundColor Red; Read-Host 'اضغط Enter'; exit 1 }
 $Dir = Join-Path $env:LOCALAPPDATA 'FleetSync'
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 Copy-Item (Join-Path $Here 'fleet-sync.ps1') $Dir -Force
